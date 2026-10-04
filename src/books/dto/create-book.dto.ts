@@ -7,10 +7,25 @@ import {
   Min,
   ValidateIf,
   IsDateString,
+  IsArray,
+  ValidateNested,
 } from 'class-validator';
+import { Type } from 'class-transformer';
+import { CreateAuthorDto } from './author.dto';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
 export class CreateBookDto {
+  @ApiPropertyOptional({
+    type: [CreateAuthorDto],
+    description:
+      'Autores; se reutilizan por nombre exacto tras quitar espacios exteriores.',
+  })
+  @ValidateIf((_, value) => value !== undefined)
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => CreateAuthorDto)
+  authors?: CreateAuthorDto[];
+
   @ApiProperty({ example: 'Don Quijote de la Mancha', maxLength: 500 })
   @IsString()
   @MaxLength(500)

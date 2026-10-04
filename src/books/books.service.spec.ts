@@ -11,9 +11,9 @@ import { SUPABASE_CLIENT } from './supabase.provider';
 
 describe('BooksService', () => {
   let service: BooksService;
-  const book = { id: 1, title: 'Book' };
+  const book = { id: 1, title: 'Book', authors: [] };
   let query: Record<string, jest.Mock<any>>;
-  let supabase: { from: jest.Mock };
+  let supabase: { from: jest.Mock; rpc: jest.Mock<any> };
 
   beforeEach(async () => {
     query = {};
@@ -27,6 +27,9 @@ describe('BooksService', () => {
       .mockResolvedValue({ data: book, error: null });
     supabase = {
       from: jest.fn().mockReturnValue(query),
+      rpc: jest
+        .fn<() => Promise<unknown>>()
+        .mockResolvedValue({ data: book, error: null }),
     };
     const module = await Test.createTestingModule({
       providers: [
@@ -50,7 +53,40 @@ describe('BooksService', () => {
 
   it('creates a book', async () => {
     await expect(service.createBook({ title: 'Book' })).resolves.toEqual(book);
-    expect(query.insert).toHaveBeenCalledWith({ title: 'Book' });
+    expect(supabase.rpc).toHaveBeenCalledWith('create_book_with_authors', {
+      payload: { title: 'Book' },
+    });
+    expect(supabase.from).not.toHaveBeenCalled();
+  });
+
+  it('returns nested authors as a flat array', async () => {
+    const author = { id: 2, name: 'Author' };
+    query.maybeSingle.mockResolvedValue({
+      data: { id: 1, title: 'Book', book_authors: [{ authors: author }] },
+      error: null,
+    });
+    await expect(service.getBook(1)).resolves.toEqual({
+      id: 1,
+      title: 'Book',
+      authors: [author],
+    });
+  });
+
+  it('updates authors and fields through one atomic RPC', async () => {
+    const payload = { title: 'Changed', authors: [{ name: 'Author' }] };
+    await expect(service.updateBook(1, payload)).resolves.toEqual(book);
+    expect(supabase.rpc).toHaveBeenCalledWith('update_book_with_authors', {
+      target_id: 1,
+      payload,
+    });
+    expect(supabase.from).not.toHaveBeenCalled();
+  });
+
+  it('returns 404 when atomic update finds no book', async () => {
+    supabase.rpc.mockResolvedValue({ data: null, error: null });
+    await expect(
+      service.updateBook(99, { authors: [] }),
+    ).rejects.toBeInstanceOf(NotFoundException);
   });
 
   it('updates only supplied fields and the modification timestamp', async () => {
@@ -87,7 +123,7 @@ describe('BooksService', () => {
     ['22001', BadRequestException],
     ['unknown', InternalServerErrorException],
   ])('maps database error %s during creation', async (code, exception) => {
-    query.single.mockResolvedValue({
+    supabase.rpc.mockResolvedValue({
       data: null,
       error: { code, message: 'private database details' },
     });

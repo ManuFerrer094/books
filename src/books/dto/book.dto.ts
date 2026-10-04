@@ -1,7 +1,11 @@
 import { ApiProperty } from '@nestjs/swagger';
 import { CreateBookDto } from './create-book.dto';
+import { AuthorDto } from './author.dto';
 
 export class BookDto extends CreateBookDto {
+  @ApiProperty({ type: [AuthorDto] })
+  declare authors: AuthorDto[];
+
   @ApiProperty({ type: 'integer', example: 1, readOnly: true })
   id: number;
 

@@ -72,6 +72,46 @@ describe('BooksController', () => {
       expect.objectContaining({ title: 'Book', isbn: '123' }),
     );
   });
+  it('creates a book with trimmed author names', async () => {
+    await request(app.getHttpServer())
+      .post('/books')
+      .send({
+        title: 'Book',
+        authors: [{ name: ' Author A ' }, { name: 'Author B' }],
+      })
+      .expect(201);
+    expect(service.createBook).toHaveBeenCalledWith(
+      expect.objectContaining({
+        authors: [{ name: 'Author A' }, { name: 'Author B' }],
+      }),
+    );
+  });
+  it.each([
+    null,
+    'Author',
+    [{}],
+    [{ name: '   ' }],
+    [{ name: 1 }],
+    [{ name: 'x'.repeat(256) }],
+    [{ name: 'Author', id: 1 }],
+  ])('rejects invalid authors %j', async (authors) => {
+    await request(app.getHttpServer())
+      .post('/books')
+      .send({ title: 'Book', authors })
+      .expect(400);
+    expect(service.createBook).not.toHaveBeenCalled();
+  });
+  it('PATCH accepts an empty author list to remove relationships', async () => {
+    await request(app.getHttpServer())
+      .patch('/books/1')
+      .send({ authors: [] })
+      .expect(200);
+    expect(service.updateBook).toHaveBeenCalledWith(
+      1,
+      expect.objectContaining({ authors: [] }),
+    );
+  });
+
   it('POST /books returns 409 for duplicate ISBN', async () => {
     service.createBook.mockRejectedValue(new ConflictException());
     await request(app.getHttpServer())
