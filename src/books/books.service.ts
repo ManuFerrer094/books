@@ -8,4 +8,16 @@ export class BooksService {
     @Inject(SUPABASE_CLIENT)
     private readonly supabase: SupabaseClient,
   ) {}
+
+  async getBooks() {
+  const { data, error } = await this.supabase
+    .from('books')
+    .select('*');
+
+  if (error) {
+    throw error;
+  }
+
+  return data;
+}
 }
