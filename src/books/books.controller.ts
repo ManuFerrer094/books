@@ -69,7 +69,8 @@ export class BooksController {
   @ApiBadRequestResponse({ description: 'ISBN inválido.' })
   @ApiNotFoundResponse({ description: 'No se encontró el libro.' })
   @ApiServiceUnavailableResponse({
-    description: 'Proveedor externo no disponible.',
+    description:
+      'No se encontr? una ficha y uno o m?s proveedores no pudieron consultarse.',
   })
   getBookByIsbn(@Param('isbn') isbn: string) {
     return this.isbnLookup.lookup(isbn);

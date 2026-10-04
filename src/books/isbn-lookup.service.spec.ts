@@ -6,7 +6,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { BooksService } from './books.service';
-import { OpenLibraryService } from './open-library.service';
+import { BookProvidersService } from './book-providers.service';
 import { IsbnLookupService } from './isbn-lookup.service';
 
 describe('IsbnLookupService', () => {
@@ -14,10 +14,12 @@ describe('IsbnLookupService', () => {
     findByIsbns: jest.fn<BooksService['findByIsbns']>(),
     createBook: jest.fn<BooksService['createBook']>(),
   };
-  const provider = { findByIsbn: jest.fn<OpenLibraryService['findByIsbn']>() };
+  const provider = {
+    findByIsbn: jest.fn<BookProvidersService['findByIsbn']>(),
+  };
   const service = new IsbnLookupService(
     books as unknown as BooksService,
-    provider as OpenLibraryService,
+    provider as BookProvidersService,
   );
   beforeEach(() => jest.resetAllMocks());
 
@@ -34,7 +36,7 @@ describe('IsbnLookupService', () => {
   it('looks up external metadata using canonical ISBN-13', async () => {
     books.findByIsbns.mockResolvedValue(null);
     const book = { title: 'External', isbn: '9780140328721' };
-    provider.findByIsbn.mockResolvedValue(book);
+    provider.findByIsbn.mockResolvedValue({ source: 'openlibrary', book });
     const saved = { ...book, id: 2, authors: [] };
     books.createBook.mockResolvedValue(saved);
     await expect(service.lookup('0140328726')).resolves.toEqual({
@@ -44,6 +46,34 @@ describe('IsbnLookupService', () => {
     expect(provider.findByIsbn).toHaveBeenCalledWith('9780140328721');
     expect(books.createBook).toHaveBeenCalledWith(book);
   });
+  it.each(['googlebooks', 'inventaire', 'internetarchive'] as const)(
+    'saves metadata from %s with the canonical ISBN and returns its source',
+    async (source) => {
+      books.findByIsbns.mockResolvedValue(null);
+      const book = {
+        title: 'External',
+        authors: [{ name: 'Author' }],
+        language: 'es',
+        publication_date: '2020-02-29',
+      };
+      provider.findByIsbn.mockResolvedValue({ source, book });
+      const saved = {
+        ...book,
+        id: 5,
+        isbn: '9780140328721',
+        authors: [{ id: 1, name: 'Author' }],
+      };
+      books.createBook.mockResolvedValue(saved);
+      await expect(service.lookup('0140328726')).resolves.toEqual({
+        source,
+        book: saved,
+      });
+      expect(books.createBook).toHaveBeenCalledWith({
+        ...book,
+        isbn: '9780140328721',
+      });
+    },
+  );
   it('rejects invalid input before calling dependencies', async () => {
     await expect(service.lookup('123')).rejects.toBeInstanceOf(
       BadRequestException,
@@ -70,7 +100,10 @@ describe('IsbnLookupService', () => {
   it('reuses the row created by a concurrent request', async () => {
     const saved = { id: 3, title: 'Shared', authors: [] };
     books.findByIsbns.mockResolvedValueOnce(null).mockResolvedValueOnce(saved);
-    provider.findByIsbn.mockResolvedValue({ title: 'Shared' });
+    provider.findByIsbn.mockResolvedValue({
+      source: 'openlibrary',
+      book: { title: 'Shared' },
+    });
     books.createBook.mockRejectedValue(new ConflictException());
     await expect(service.lookup('9780140328721')).resolves.toEqual({
       source: 'database',
@@ -80,7 +113,10 @@ describe('IsbnLookupService', () => {
   });
   it('propagates insertion errors without returning an unsaved preview', async () => {
     books.findByIsbns.mockResolvedValue(null);
-    provider.findByIsbn.mockResolvedValue({ title: 'Book' });
+    provider.findByIsbn.mockResolvedValue({
+      source: 'googlebooks',
+      book: { title: 'Book' },
+    });
     books.createBook.mockRejectedValue(new InternalServerErrorException());
     await expect(service.lookup('9780140328721')).rejects.toBeInstanceOf(
       InternalServerErrorException,
@@ -88,7 +124,10 @@ describe('IsbnLookupService', () => {
   });
   it('does not swallow a conflict when no matching ISBN exists', async () => {
     books.findByIsbns.mockResolvedValue(null);
-    provider.findByIsbn.mockResolvedValue({ title: 'Book' });
+    provider.findByIsbn.mockResolvedValue({
+      source: 'googlebooks',
+      book: { title: 'Book' },
+    });
     books.createBook.mockRejectedValue(new ConflictException());
     await expect(service.lookup('9780140328721')).rejects.toBeInstanceOf(
       ConflictException,
