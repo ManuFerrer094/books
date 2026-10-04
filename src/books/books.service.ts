@@ -98,6 +98,8 @@ export class BooksService {
       .eq('id', id)
       .select('id')
       .maybeSingle();
+    if (error && ['23503', '23001'].includes(error.code))
+      throw new ConflictException('Book belongs to a user library');
     if (error) this.handleError(error);
     if (!data) throw new NotFoundException('Book not found');
   }

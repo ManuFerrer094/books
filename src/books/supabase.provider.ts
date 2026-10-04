@@ -10,8 +10,16 @@ export const supabaseProvider = {
 
   useFactory: (configService: ConfigService) => {
     const supabaseUrl = configService.getOrThrow<string>('SUPABASE_URL');
-    const supabaseKey = configService.getOrThrow<string>('SUPABASE_KEY');
+    const supabaseKey =
+      configService.get<string>('SUPABASE_SERVICE_ROLE_KEY') ??
+      configService.getOrThrow<string>('SUPABASE_KEY');
 
-    return createClient(supabaseUrl, supabaseKey);
+    return createClient(supabaseUrl, supabaseKey, {
+      auth: {
+        persistSession: false,
+        autoRefreshToken: false,
+        detectSessionInUrl: false,
+      },
+    });
   },
 };

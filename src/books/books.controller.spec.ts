@@ -7,6 +7,8 @@ import {
 } from '@nestjs/common';
 import request from 'supertest';
 import { BooksController } from './books.controller';
+import { AuthGuard } from '../auth/auth.guard';
+import { AdminGuard } from '../auth/admin.guard';
 import { BooksService } from './books.service';
 import { IsbnLookupService } from './isbn-lookup.service';
 
@@ -42,7 +44,12 @@ describe('BooksController', () => {
         { provide: BooksService, useValue: service },
         { provide: IsbnLookupService, useValue: lookup },
       ],
-    }).compile();
+    })
+      .overrideGuard(AuthGuard)
+      .useValue({ canActivate: () => true })
+      .overrideGuard(AdminGuard)
+      .useValue({ canActivate: () => true })
+      .compile();
     app = module.createNestApplication();
     await app.init();
   });

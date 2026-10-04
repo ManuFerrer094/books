@@ -1,3 +1,7 @@
+## Usuarios y biblioteca personal
+
+Configuraci?n de Supabase, migraci?n y ejemplos de Swagger: [gu?a de autenticaci?n](src/auth/README.md).
+
 <p align="center">
   <a href="http://nestjs.com/" target="blank"><img src="https://nestjs.com/img/logo-small.svg" width="120" alt="Nest Logo" /></a>
 </p>
