@@ -44,6 +44,18 @@ export class BooksService {
     return withAuthors(data);
   }
 
+  async findByIsbns(isbns: string[]) {
+    const { data, error } = await this.supabase
+      .from('books')
+      .select(BOOK_SELECT)
+      .in('isbn', isbns)
+      .order('id')
+      .limit(1)
+      .maybeSingle();
+    if (error) this.handleError(error);
+    return data ? withAuthors(data) : null;
+  }
+
   async createBook(book: CreateBookDto) {
     const { data, error } = await this.supabase.rpc(
       'create_book_with_authors',

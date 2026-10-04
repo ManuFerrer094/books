@@ -8,10 +8,17 @@ import {
 import request from 'supertest';
 import { BooksController } from './books.controller';
 import { BooksService } from './books.service';
+import { IsbnLookupService } from './isbn-lookup.service';
 
 describe('BooksController', () => {
   let app: INestApplication;
-  const book = { id: 1, title: 'Book' };
+  const book = {
+    id: 1,
+    title: 'Book',
+    authors: [],
+    created_at: '2026-10-04T10:00:00',
+    updated_at: '2026-10-04T10:00:00',
+  };
   const service = {
     getBooks: jest.fn<BooksService['getBooks']>(),
     getBook: jest.fn<BooksService['getBook']>(),
@@ -19,6 +26,8 @@ describe('BooksController', () => {
     updateBook: jest.fn<BooksService['updateBook']>(),
     deleteBook: jest.fn<BooksService['deleteBook']>(),
   };
+
+  const lookup = { lookup: jest.fn<IsbnLookupService['lookup']>() };
 
   beforeEach(async () => {
     jest.resetAllMocks();
@@ -29,13 +38,26 @@ describe('BooksController', () => {
     service.deleteBook.mockResolvedValue(undefined);
     const module = await Test.createTestingModule({
       controllers: [BooksController],
-      providers: [{ provide: BooksService, useValue: service }],
+      providers: [
+        { provide: BooksService, useValue: service },
+        { provide: IsbnLookupService, useValue: lookup },
+      ],
     }).compile();
     app = module.createNestApplication();
     await app.init();
   });
   afterEach(async () => {
     await app.close();
+  });
+
+  it('GET /books/isbn/:isbn routes to lookup without treating ISBN as an id', async () => {
+    lookup.lookup.mockResolvedValue({ source: 'database', book });
+    await request(app.getHttpServer())
+      .get('/books/isbn/9780140328721')
+      .expect(200)
+      .expect({ source: 'database', book });
+    expect(lookup.lookup).toHaveBeenCalledWith('9780140328721');
+    expect(service.getBook).not.toHaveBeenCalled();
   });
 
   it('GET /books preserves the list endpoint', async () => {

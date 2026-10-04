@@ -4,6 +4,7 @@ import {
   Delete,
   Get,
   HttpCode,
+  Header,
   Param,
   ParseIntPipe,
   Patch,
@@ -15,6 +16,8 @@ import { BooksService } from './books.service';
 import { CreateBookDto } from './dto/create-book.dto';
 import { UpdateBookDto } from './dto/update-book.dto';
 import { BookDto } from './dto/book.dto';
+import { IsbnLookupDto } from './dto/isbn-lookup.dto';
+import { IsbnLookupService } from './isbn-lookup.service';
 import {
   ApiBadRequestResponse,
   ApiConflictResponse,
@@ -26,6 +29,7 @@ import {
   ApiOperation,
   ApiParam,
   ApiTags,
+  ApiServiceUnavailableResponse,
 } from '@nestjs/swagger';
 
 @Controller('books')
@@ -41,13 +45,34 @@ import {
   }),
 )
 export class BooksController {
-  constructor(private readonly booksService: BooksService) {}
+  constructor(
+    private readonly booksService: BooksService,
+    private readonly isbnLookup: IsbnLookupService,
+  ) {}
 
   @Get()
   @ApiOperation({ summary: 'Listar libros' })
   @ApiOkResponse({ type: BookDto, isArray: true })
   getBooks() {
     return this.booksService.getBooks();
+  }
+
+  @Get('isbn/:isbn')
+  @Header('Cache-Control', 'no-store')
+  @ApiOperation({ summary: 'Consultar por ISBN e importar el libro si falta' })
+  @ApiParam({
+    name: 'isbn',
+    example: '9780140328721',
+    description: 'ISBN-10 o ISBN-13; admite espacios y guiones.',
+  })
+  @ApiOkResponse({ type: IsbnLookupDto })
+  @ApiBadRequestResponse({ description: 'ISBN inválido.' })
+  @ApiNotFoundResponse({ description: 'No se encontró el libro.' })
+  @ApiServiceUnavailableResponse({
+    description: 'Proveedor externo no disponible.',
+  })
+  getBookByIsbn(@Param('isbn') isbn: string) {
+    return this.isbnLookup.lookup(isbn);
   }
 
   @Get(':id')

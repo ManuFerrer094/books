@@ -17,7 +17,16 @@ describe('BooksService', () => {
 
   beforeEach(async () => {
     query = {};
-    for (const method of ['select', 'eq', 'insert', 'update', 'delete'])
+    for (const method of [
+      'select',
+      'eq',
+      'in',
+      'order',
+      'limit',
+      'insert',
+      'update',
+      'delete',
+    ])
       query[method] = jest.fn().mockReturnValue(query);
     query.maybeSingle = jest
       .fn<() => Promise<unknown>>()
@@ -49,6 +58,29 @@ describe('BooksService', () => {
   it('gets a book by id', async () => {
     await expect(service.getBook(1)).resolves.toEqual(book);
     expect(query.eq).toHaveBeenCalledWith('id', 1);
+  });
+
+  it('finds local books using equivalent ISBN keys', async () => {
+    await expect(
+      service.findByIsbns(['9780140328721', '0140328726']),
+    ).resolves.toEqual(book);
+    expect(query.in).toHaveBeenCalledWith('isbn', [
+      '9780140328721',
+      '0140328726',
+    ]);
+  });
+  it('returns null for a missing ISBN', async () => {
+    query.maybeSingle.mockResolvedValue({ data: null, error: null });
+    await expect(service.findByIsbns(['9780140328721'])).resolves.toBeNull();
+  });
+  it('does not mask database errors as missing ISBNs', async () => {
+    query.maybeSingle.mockResolvedValue({
+      data: null,
+      error: { code: 'unknown' },
+    });
+    await expect(service.findByIsbns(['9780140328721'])).rejects.toBeInstanceOf(
+      InternalServerErrorException,
+    );
   });
 
   it('creates a book', async () => {
