@@ -10,9 +10,12 @@ import {
   Patch,
   Post,
   UsePipes,
+  UseGuards,
   ValidationPipe,
 } from '@nestjs/common';
 import { BooksService } from './books.service';
+import { AuthGuard } from '../auth/auth.guard';
+import { AdminGuard } from '../auth/admin.guard';
 import { CreateBookDto } from './dto/create-book.dto';
 import { UpdateBookDto } from './dto/update-book.dto';
 import { BookDto } from './dto/book.dto';
@@ -20,6 +23,9 @@ import { IsbnLookupDto } from './dto/isbn-lookup.dto';
 import { IsbnLookupService } from './isbn-lookup.service';
 import {
   ApiBadRequestResponse,
+  ApiBearerAuth,
+  ApiForbiddenResponse,
+  ApiUnauthorizedResponse,
   ApiConflictResponse,
   ApiCreatedResponse,
   ApiInternalServerErrorResponse,
@@ -34,6 +40,9 @@ import {
 
 @Controller('books')
 @ApiTags('books')
+@ApiBearerAuth()
+@ApiUnauthorizedResponse()
+@UseGuards(AuthGuard)
 @ApiInternalServerErrorResponse({
   description: 'No se pudo acceder a los libros.',
 })
@@ -96,6 +105,11 @@ export class BooksController {
   }
 
   @Patch(':id')
+  @UseGuards(AdminGuard)
+  @ApiForbiddenResponse({
+    description:
+      'Se requiere administrador para editar el cat?logo compartido.',
+  })
   @ApiOperation({ summary: 'Actualizar parcialmente un libro' })
   @ApiParam({ name: 'id', type: 'integer', example: 1 })
   @ApiOkResponse({ type: BookDto })
@@ -110,6 +124,11 @@ export class BooksController {
   }
 
   @Delete(':id')
+  @UseGuards(AdminGuard)
+  @ApiForbiddenResponse({
+    description:
+      'Se requiere administrador para borrar del cat?logo compartido.',
+  })
   @ApiOperation({ summary: 'Eliminar un libro' })
   @ApiParam({ name: 'id', type: 'integer', example: 1 })
   @ApiNoContentResponse({ description: 'Libro eliminado.' })

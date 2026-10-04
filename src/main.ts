@@ -8,6 +8,7 @@ async function bootstrap() {
     .setTitle('Biblioteca API')
     .setDescription('API REST para la gestión de libros de la biblioteca.')
     .setVersion('1.0')
+    .addBearerAuth()
     .build();
   SwaggerModule.setup('docs', app, SwaggerModule.createDocument(app, config));
   await app.listen(process.env.PORT ?? 3000);

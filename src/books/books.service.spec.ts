@@ -139,6 +139,15 @@ describe('BooksService', () => {
     expect(query.select).toHaveBeenCalledWith('id');
   });
 
+  it.each(['23503', '23001'])(
+    'does not delete shared books still referenced by a library (%s)',
+    async (code) => {
+      query.maybeSingle.mockResolvedValue({ data: null, error: { code } });
+      await expect(service.deleteBook(1)).rejects.toThrow(
+        'Book belongs to a user library',
+      );
+    },
+  );
   it.each(['getBook', 'updateBook', 'deleteBook'] as const)(
     '%s returns 404 for a missing book',
     async (method) => {

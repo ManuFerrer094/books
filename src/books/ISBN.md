@@ -105,3 +105,7 @@ Referencias oficiales:
 - https://api.inventaire.io/
 - https://data.inventaire.io/
 - https://archive.org/services/docs/api/
+
+## Autenticaci?n
+
+Las rutas `/books` requieren ahora Bearer access token. Para importar y a?adir a tu biblioteca en una operaci?n usa `POST /me/books/isbn`. Configuraci?n: [usuarios y biblioteca](../auth/README.md).
