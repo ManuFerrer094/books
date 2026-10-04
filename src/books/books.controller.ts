@@ -79,7 +79,7 @@ export class BooksController {
   @ApiNotFoundResponse({ description: 'No se encontró el libro.' })
   @ApiServiceUnavailableResponse({
     description:
-      'No se encontr? una ficha y uno o m?s proveedores no pudieron consultarse.',
+      'No se encontró una ficha y uno o más proveedores no pudieron consultarse.',
   })
   getBookByIsbn(@Param('isbn') isbn: string) {
     return this.isbnLookup.lookup(isbn);
@@ -108,7 +108,7 @@ export class BooksController {
   @UseGuards(AdminGuard)
   @ApiForbiddenResponse({
     description:
-      'Se requiere administrador para editar el cat?logo compartido.',
+      'Se requiere administrador para editar el catálogo compartido.',
   })
   @ApiOperation({ summary: 'Actualizar parcialmente un libro' })
   @ApiParam({ name: 'id', type: 'integer', example: 1 })
@@ -127,7 +127,7 @@ export class BooksController {
   @UseGuards(AdminGuard)
   @ApiForbiddenResponse({
     description:
-      'Se requiere administrador para borrar del cat?logo compartido.',
+      'Se requiere administrador para borrar del catálogo compartido.',
   })
   @ApiOperation({ summary: 'Eliminar un libro' })
   @ApiParam({ name: 'id', type: 'integer', example: 1 })
