@@ -1,7 +1,9 @@
 ﻿import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
-import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
+import { configureApp } from './app.setup';
 import { getCACertificates, setDefaultCACertificates } from 'node:tls';
+import type { IncomingMessage, ServerResponse } from 'node:http';
+import type { INestApplication } from '@nestjs/common';
 
 async function bootstrap() {
   // Include the OS trust store (e.g. Windows enterprise/proxy certificates),
@@ -16,13 +18,29 @@ async function bootstrap() {
     ]);
   }
   const app = await NestFactory.create(AppModule);
-  const config = new DocumentBuilder()
-    .setTitle('Biblioteca API')
-    .setDescription('API REST para la gestión de libros de la biblioteca.')
-    .setVersion('1.0')
-    .addBearerAuth()
-    .build();
-  SwaggerModule.setup('docs', app, SwaggerModule.createDocument(app, config));
-  await app.listen(process.env.PORT ?? 3000);
+  console.log('Nest Vercel check: before configuration');
+  configureApp(app);
+  console.log('Nest Vercel check: before initialization');
+  await app.init();
+  console.log('Nest Vercel check: initialized');
+  return app;
 }
-bootstrap();
+
+let ready: Promise<INestApplication> | undefined;
+function getApp() {
+  return (ready ??= bootstrap());
+}
+
+// Export an explicit function so Vercel waits for Nest initialization instead
+// of relying on detecting a listen() call during a potentially slow cold start.
+export default async function handler(
+  req: IncomingMessage,
+  res: ServerResponse,
+) {
+  const app = await getApp();
+  app.getHttpAdapter().getInstance()(req, res);
+}
+
+if (process.env.VERCEL !== '1') {
+  void getApp().then((app) => app.listen(process.env.PORT ?? 3000));
+}
