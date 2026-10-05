@@ -45,7 +45,9 @@ En Supabase → Authentication → URL Configuration, añade `http://localhost:5
 - Consultar la ficha y quitar un libro de tu biblioteca mediante confirmación.
 - Cambiar entre **Portadas** (vista inicial) y **Estantería**, con baldas de madera y lomos que se adaptan al ancho de pantalla.
 - En **Todos mis libros**, sin búsqueda, pulsar **Ordenar estantería** y arrastrar el asa de los lomos con ratón o pantalla táctil. También puedes usar las flechas de cada libro o enfocar el asa y pulsar las teclas ←/→. El orden se guarda en tu cuenta.
-- Abrir la ficha y pulsar **Personalizar lomo** para ajustar color, grosor y altura o subir una foto. Se admiten JPEG, PNG y WebP de hasta 5 MB; puedes ampliar y desplazar el recorte antes de guardar. **Restaurar aspecto automático** elimina tus ajustes y la foto al guardar.
+- Abrir la ficha y pulsar **Personalizar lomo** para ajustar color, grosor y altura, elegir una imagen o pulsar **Hacer foto** para usar la cámara del móvil. Se admiten JPEG, PNG y WebP de hasta 5 MB.
+- Al elegir o hacer una foto se abre automáticamente el recorte: verás la fotografía completa y el resultado del lomo a la vez. Arrastra el marco, sus esquinas o sus bordes para quitar la mano y el fondo; la vista previa cambia al instante. Puedes girar 90°, enderezar la imagen y abrir los ajustes precisos para ampliar o desplazar la selección. Los controles también admiten las teclas de dirección (Shift para pasos mayores).
+- Pulsa **Usar este recorte** y después **Guardar lomo**. **Volver a recortar** conserva la foto original y la selección mientras editas; no necesitas transformar la foto fuera de la app. **Restaurar aspecto automático** elimina tus ajustes y la foto al guardar.
 
 Antes de desplegar esta versión, aplica la [migración 003](../src/books/database/migrations/003_bookshelf.sql) después de las migraciones 001 y 002. Crea los campos personales, la tabla de orden y el bucket privado `book-spines` con sus políticas RLS. No requiere nuevas variables de entorno. Las baldas son automáticas: el mismo orden puede ocupar distintas filas en móvil y ordenador. Los libros nuevos se colocan al final y los retirados desaparecen del orden.
 

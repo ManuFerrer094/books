@@ -1,14 +1,28 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react';
-import { Camera, RotateCcw, Save, X } from 'lucide-react';
+import {
+  Camera,
+  Check,
+  ImagePlus,
+  RotateCcw,
+  RotateCw,
+  Save,
+  X,
+} from 'lucide-react';
 import { api, errorMessage } from './api';
 import { automaticSpine, spineColors, spineStyle } from './bookshelf-layout';
 import {
-  drawSpinePhoto,
+  clampCrop,
+  drawSpineSelection,
+  initialCrop,
+  prepareSpineImage,
   spinePhotoBlob,
   validateSpineFile,
+  zoomCrop,
+  type CropRect,
 } from './spine-photo';
 import { supabase } from './supabase';
 import Spine from './Spine';
+import SpinePhotoCropper from './SpinePhotoCropper';
 import type { LibraryBook, SpineAppearance } from './types';
 
 export default function SpineEditor({
@@ -29,9 +43,12 @@ export default function SpineEditor({
   );
   const [file, setFile] = useState<File | null>(null);
   const [image, setImage] = useState<HTMLImageElement | null>(null);
+  const [source, setSource] = useState<HTMLCanvasElement | null>(null);
+  const [crop, setCrop] = useState<CropRect | null>(null);
+  const [cropping, setCropping] = useState(false);
+  const [rotation, setRotation] = useState(0);
+  const [straighten, setStraighten] = useState(0);
   const [zoom, setZoom] = useState(1);
-  const [x, setX] = useState(0);
-  const [y, setY] = useState(0);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
@@ -39,10 +56,18 @@ export default function SpineEditor({
   const [checking, setChecking] = useState(false);
   const canvas = useRef<HTMLCanvasElement>(null);
   const input = useRef<HTMLInputElement>(null);
+  const cropHeading = useRef<HTMLHeadingElement>(null);
+  const previousTransform = useRef<{
+    image: HTMLImageElement;
+    rotation: number;
+    source: HTMLCanvasElement;
+  } | null>(null);
   const pending = useRef(false);
   const alive = useRef(false);
   const preview = { ...entry, spine: appearance };
   const style = spineStyle(preview);
+  const ratio = useRef(style.width / style.height);
+  ratio.current = style.width / style.height;
   useEffect(() => {
     alive.current = true;
     return () => {
@@ -86,22 +111,65 @@ export default function SpineEditor({
     };
   }, [file]);
   useEffect(() => {
-    if (image && canvas.current) {
+    if (!image) {
+      setSource(null);
+      setCrop(null);
+      previousTransform.current = null;
+      return;
+    }
+    try {
+      const prepared = prepareSpineImage(image, rotation + straighten);
+      const previous = previousTransform.current;
+      setCrop((old) =>
+        old && previous?.image === image && previous.rotation === rotation
+          ? clampCrop(
+              {
+                ...old,
+                x: old.x + (prepared.width - previous.source.width) / 2,
+                y: old.y + (prepared.height - previous.source.height) / 2,
+              },
+              prepared,
+            )
+          : initialCrop(prepared, ratio.current),
+      );
+      setSource(prepared);
+      previousTransform.current = { image, rotation, source: prepared };
+      setZoom(1);
+    } catch (cause) {
+      setError(errorMessage(cause));
+      setSource(null);
+      setCrop(null);
+    }
+  }, [image, rotation, straighten]);
+  useEffect(() => {
+    if (source && crop && canvas.current) {
       try {
-        drawSpinePhoto(
+        drawSpineSelection(
           canvas.current,
-          image,
+          source,
+          crop,
           style.width / style.height,
-          zoom,
-          x,
-          y,
         );
       } catch (cause) {
         setError(errorMessage(cause));
-        setImage(null);
+        setSource(null);
       }
     }
-  }, [image, style.width, style.height, zoom, x, y]);
+  }, [source, crop, style.width, style.height]);
+  useEffect(() => {
+    if (image && cropping) {
+      cropHeading.current?.scrollIntoView({
+        block: 'start',
+        behavior: 'instant',
+      });
+      cropHeading.current?.focus({ preventScroll: true });
+    }
+  }, [image, cropping]);
+  function changeCrop(next: CropRect) {
+    setCrop(next);
+    setZoom(1);
+    setNotice('');
+  }
   function selectFile(next?: File) {
     if (!next) return;
     try {
@@ -110,9 +178,12 @@ export default function SpineEditor({
       setNotice('');
       setImage(null);
       setFile(next);
+      setSource(null);
+      setCrop(null);
+      setCropping(true);
+      setRotation(0);
+      setStraighten(0);
       setZoom(1);
-      setX(0);
-      setY(0);
     } catch (cause) {
       setError(errorMessage(cause));
     }
@@ -169,7 +240,12 @@ export default function SpineEditor({
   }
   async function submit(event: FormEvent) {
     event.preventDefault();
-    if (!alive.current || pending.current || ambiguousPath || (file && !image))
+    if (
+      !alive.current ||
+      pending.current ||
+      ambiguousPath ||
+      (file && (!source || !crop || cropping))
+    )
       return;
     pending.current = true;
     setBusy(true);
@@ -181,6 +257,12 @@ export default function SpineEditor({
     try {
       const next = { ...appearance };
       if (file) {
+        drawSpineSelection(
+          canvas.current!,
+          source!,
+          crop!,
+          style.width / style.height,
+        );
         const blob = await spinePhotoBlob(canvas.current!);
         const {
           data: { session },
@@ -244,20 +326,188 @@ export default function SpineEditor({
       </div>
       <form onSubmit={(event) => void submit(event)}>
         <fieldset disabled={busy || checking || !!ambiguousPath}>
-          <div className="spine-editor-layout">
-            <div className="spine-preview">
-              {file ? (
-                <canvas
-                  ref={canvas}
-                  className="photo-spine"
-                  style={{ width: style.width, height: style.height }}
-                  aria-label="Vista previa del recorte del lomo"
-                />
-              ) : (
-                <Spine entry={preview} />
+          {file && (
+            <section
+              className="spine-photo-workspace"
+              aria-label="Recortar foto del lomo"
+            >
+              <div className="spine-photo-heading">
+                <h4 ref={cropHeading} tabIndex={-1}>
+                  {cropping ? 'Encuadra solo el lomo' : 'Tu recorte está listo'}
+                </h4>
+                <p>
+                  {cropping
+                    ? 'Arrastra el marco y sus bordes para dejar fuera la mano y el fondo. Verás el resultado al instante.'
+                    : 'Este es el lomo que se guardará. Puedes volver a recortarlo antes de guardar.'}
+                </p>
+              </div>
+              <div
+                className={`spine-photo-layout ${cropping ? '' : 'crop-confirmed'}`}
+              >
+                {cropping ? (
+                  source && crop ? (
+                    <SpinePhotoCropper
+                      source={source}
+                      crop={crop}
+                      onChange={changeCrop}
+                      disabled={busy || checking || !!ambiguousPath}
+                    />
+                  ) : (
+                    <div className="spine-crop-stage" role="status">
+                      Preparando tu foto…
+                    </div>
+                  )
+                ) : (
+                  <div className="spine-photo-summary">
+                    <Check size={20} />
+                    <p>Solo se usará el área que has seleccionado.</p>
+                    <button
+                      type="button"
+                      className="button secondary"
+                      onClick={() => {
+                        setCropping(true);
+                        setNotice('');
+                      }}
+                    >
+                      Volver a recortar
+                    </button>
+                  </div>
+                )}
+                <div className="spine-preview">
+                  <canvas
+                    ref={canvas}
+                    className="photo-spine"
+                    style={{ width: style.width, height: style.height }}
+                    aria-label="Vista previa del recorte del lomo"
+                  />
+                  <span>Así quedará</span>
+                </div>
+              </div>
+              {cropping && source && crop && (
+                <>
+                  <div className="spine-photo-transform">
+                    <button
+                      type="button"
+                      className="button secondary"
+                      onClick={() => {
+                        setRotation((old) => (old + 90) % 360);
+                        setStraighten(0);
+                      }}
+                    >
+                      <RotateCw size={15} /> Girar 90°
+                    </button>
+                    <label className="field">
+                      Enderezar <span>{straighten}°</span>
+                      <input
+                        type="range"
+                        min="-20"
+                        max="20"
+                        step="0.5"
+                        value={straighten}
+                        onChange={(e) => setStraighten(Number(e.target.value))}
+                      />
+                    </label>
+                  </div>
+                  <details className="spine-crop-controls">
+                    <summary>Ajustes precisos del recorte</summary>
+                    <label className="field">
+                      Ampliar
+                      <input
+                        type="range"
+                        min="1"
+                        max="12"
+                        step="0.05"
+                        value={zoom}
+                        onChange={(e) => {
+                          const next = Number(e.target.value);
+                          setCrop(zoomCrop(crop, next / zoom, source));
+                          setZoom(next);
+                        }}
+                      />
+                    </label>
+                    <label className="field">
+                      Desplazar horizontalmente
+                      <input
+                        type="range"
+                        min="-1"
+                        max="1"
+                        step="0.01"
+                        value={
+                          source.width === crop.width
+                            ? 0
+                            : (crop.x * 2) / (source.width - crop.width) - 1
+                        }
+                        onChange={(e) =>
+                          setCrop({
+                            ...crop,
+                            x:
+                              ((source.width - crop.width) *
+                                (Number(e.target.value) + 1)) /
+                              2,
+                          })
+                        }
+                      />
+                    </label>
+                    <label className="field">
+                      Desplazar verticalmente
+                      <input
+                        type="range"
+                        min="-1"
+                        max="1"
+                        step="0.01"
+                        value={
+                          source.height === crop.height
+                            ? 0
+                            : (crop.y * 2) / (source.height - crop.height) - 1
+                        }
+                        onChange={(e) =>
+                          setCrop({
+                            ...crop,
+                            y:
+                              ((source.height - crop.height) *
+                                (Number(e.target.value) + 1)) /
+                              2,
+                          })
+                        }
+                      />
+                    </label>
+                  </details>
+                  <div className="spine-crop-actions">
+                    <button
+                      type="button"
+                      className="text-button"
+                      onClick={() =>
+                        changeCrop(
+                          initialCrop(source, style.width / style.height),
+                        )
+                      }
+                    >
+                      <RotateCcw size={14} /> Reiniciar marco
+                    </button>
+                    <button
+                      type="button"
+                      className="button primary"
+                      onClick={() => {
+                        setCropping(false);
+                        setNotice(
+                          'Recorte listo. Guarda el lomo cuando quieras.',
+                        );
+                      }}
+                    >
+                      <Check size={16} /> Usar este recorte
+                    </button>
+                  </div>
+                </>
               )}
-              <span>Vista previa</span>
-            </div>
+            </section>
+          )}
+          <div className={`spine-editor-layout ${file ? 'has-photo' : ''}`}>
+            {!file && (
+              <div className="spine-preview">
+                <Spine entry={preview} />
+                <span>Vista previa</span>
+              </div>
+            )}
             <div className="spine-settings">
               <label className="field">
                 Color del lomo
@@ -312,12 +562,25 @@ export default function SpineEditor({
                 />
               </label>
               <label className="button secondary spine-upload">
-                <Camera size={16} /> Elegir foto del lomo
+                <ImagePlus size={16} /> Elegir foto del lomo
                 <input
                   ref={input}
                   type="file"
                   accept="image/jpeg,image/png,image/webp"
                   aria-label="Foto del lomo"
+                  onChange={(e) => {
+                    selectFile(e.target.files?.[0]);
+                    e.target.value = '';
+                  }}
+                />
+              </label>
+              <label className="button secondary spine-upload spine-camera">
+                <Camera size={16} /> Hacer foto
+                <input
+                  type="file"
+                  accept="image/jpeg,image/png,image/webp"
+                  capture="environment"
+                  aria-label="Hacer foto del lomo"
                   onChange={(e) => {
                     selectFile(e.target.files?.[0]);
                     e.target.value = '';
@@ -341,46 +604,6 @@ export default function SpineEditor({
                 </button>
               )}
             </div>
-            {file && (
-              <div className="spine-crop-controls">
-                <p>
-                  Ajusta la foto hasta que el lomo ocupe toda la vista previa.
-                </p>
-                <label className="field">
-                  Ampliar
-                  <input
-                    type="range"
-                    min="1"
-                    max="4"
-                    step="0.05"
-                    value={zoom}
-                    onChange={(e) => setZoom(Number(e.target.value))}
-                  />
-                </label>
-                <label className="field">
-                  Desplazar horizontalmente
-                  <input
-                    type="range"
-                    min="-1"
-                    max="1"
-                    step="0.01"
-                    value={x}
-                    onChange={(e) => setX(Number(e.target.value))}
-                  />
-                </label>
-                <label className="field">
-                  Desplazar verticalmente
-                  <input
-                    type="range"
-                    min="-1"
-                    max="1"
-                    step="0.01"
-                    value={y}
-                    onChange={(e) => setY(Number(e.target.value))}
-                  />
-                </label>
-              </div>
-            )}
           </div>
           <div className="spine-editor-actions">
             <button
@@ -397,7 +620,7 @@ export default function SpineEditor({
             </button>
             <button
               className="button primary"
-              disabled={busy || (!!file && !image)}
+              disabled={busy || (!!file && (!source || !crop || cropping))}
             >
               <Save size={15} />
               {busy ? 'Guardando…' : 'Guardar lomo'}

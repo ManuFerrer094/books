@@ -1,9 +1,9 @@
-import { useState } from 'react';
+import { lazy, Suspense, useState } from 'react';
 import { Trash2 } from 'lucide-react';
 import { api, errorMessage } from './api';
 import { Cover, Dialog, Feedback, StatusSelect } from './components';
 import type { LibraryBook, ReadingStatus } from './types';
-import SpineEditor from './SpineEditor';
+const SpineEditor = lazy(() => import('./SpineEditor'));
 
 export default function BookDetails({
   ownerId,
@@ -100,14 +100,22 @@ export default function BookDetails({
         </div>
       </div>
       {editingSpine ? (
-        <SpineEditor
-          key={entry.book_id}
-          ownerId={ownerId}
-          entry={entry}
-          onUpdated={onUpdated}
-          onClose={() => setEditingSpine(false)}
-          onBusy={setBusy}
-        />
+        <Suspense
+          fallback={
+            <p className="small-note" role="status">
+              Abriendo el editor del lomo…
+            </p>
+          }
+        >
+          <SpineEditor
+            key={entry.book_id}
+            ownerId={ownerId}
+            entry={entry}
+            onUpdated={onUpdated}
+            onClose={() => setEditingSpine(false)}
+            onBusy={setBusy}
+          />
+        </Suspense>
       ) : (
         <button
           className="button secondary personalize-spine"

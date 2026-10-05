@@ -979,6 +979,224 @@ h3 {
   grid-template-columns: 130px minmax(0, 1fr);
   gap: 25px;
 }
+.spine-editor-layout.has-photo {
+  grid-template-columns: minmax(0, 1fr);
+}
+.spine-photo-workspace {
+  margin-bottom: 24px;
+  padding: 16px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #f1f1e8;
+}
+.spine-photo-heading {
+  margin-bottom: 14px;
+}
+.spine-photo-heading h4 {
+  margin: 0 0 7px;
+  font: 400 19px/1.4 var(--serif);
+  scroll-margin-top: 16px;
+}
+.spine-photo-heading p {
+  font-size: 12px;
+  line-height: 1.6;
+  color: #748069;
+}
+.spine-photo-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 104px;
+  align-items: start;
+  gap: 16px;
+}
+.spine-photo-layout .spine-preview {
+  grid-row: auto;
+  top: 12px;
+  min-height: 270px;
+  padding: 16px 12px;
+}
+.spine-crop-stage {
+  position: relative;
+  height: 340px;
+  overflow: hidden;
+  border-radius: 5px;
+  background: #30382f;
+  color: #fff9ed;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+}
+.spine-crop-original {
+  position: absolute;
+  pointer-events: none;
+}
+.spine-crop-frame {
+  position: absolute;
+  border: 2px solid #fff9ed;
+  box-shadow: 0 0 0 1000px #151c19a6;
+}
+.spine-crop-move {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  cursor: move;
+  touch-action: none;
+}
+.spine-crop-grid {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background:
+    linear-gradient(
+      90deg,
+      transparent 32.9%,
+      #fff8e65c 33%,
+      #fff8e65c 33.4%,
+      transparent 33.5%,
+      transparent 66.2%,
+      #fff8e65c 66.3%,
+      #fff8e65c 66.7%,
+      transparent 66.8%
+    ),
+    linear-gradient(
+      0deg,
+      transparent 32.9%,
+      #fff8e65c 33%,
+      #fff8e65c 33.4%,
+      transparent 33.5%,
+      transparent 66.2%,
+      #fff8e65c 66.3%,
+      #fff8e65c 66.7%,
+      transparent 66.8%
+    );
+}
+.spine-crop-handle {
+  position: absolute;
+  z-index: 2;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  touch-action: none;
+  transform: translate(-50%, -50%);
+}
+.spine-crop-handle::after {
+  content: '';
+  position: absolute;
+  inset: 8px;
+  border: 2px solid #fff;
+  border-radius: 2px;
+  background: #526b50;
+  box-shadow: 0 1px 4px #0008;
+}
+.spine-crop-handle:focus-visible {
+  outline: 2px solid #ffe6a1;
+  outline-offset: 0;
+}
+.spine-crop-move:focus-visible {
+  outline: 2px solid #ffe6a1;
+  outline-offset: -4px;
+}
+.crop-handle-nw {
+  left: 0;
+  top: 0;
+  cursor: nwse-resize;
+}
+.crop-handle-n {
+  left: 50%;
+  top: 0;
+  cursor: ns-resize;
+}
+.crop-handle-ne {
+  left: 100%;
+  top: 0;
+  cursor: nesw-resize;
+}
+.crop-handle-e {
+  left: 100%;
+  top: 50%;
+  cursor: ew-resize;
+}
+.crop-handle-se {
+  left: 100%;
+  top: 100%;
+  cursor: nwse-resize;
+}
+.crop-handle-s {
+  left: 50%;
+  top: 100%;
+  cursor: ns-resize;
+}
+.crop-handle-sw {
+  left: 0;
+  top: 100%;
+  cursor: nesw-resize;
+}
+.crop-handle-w {
+  left: 0;
+  top: 50%;
+  cursor: ew-resize;
+}
+.spine-photo-transform {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  margin-top: 16px;
+}
+.spine-photo-transform .field {
+  flex: 1;
+  margin: 0;
+  min-width: 0;
+}
+.spine-photo-transform .field span {
+  font-size: 11px;
+  color: #7d836e;
+}
+.spine-photo-transform input[type='range'] {
+  accent-color: #51624e;
+  padding: 0;
+  height: 24px;
+}
+.spine-photo-transform .button {
+  flex-shrink: 0;
+  padding: 10px 12px;
+  font-size: 12px;
+}
+.spine-crop-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-top: 16px;
+}
+.spine-crop-actions .button {
+  font-size: 12px;
+  padding: 10px 12px;
+}
+.spine-crop-actions .text-button {
+  font-size: 11px;
+}
+.spine-photo-summary {
+  color: #526b50;
+  padding: 18px 0;
+}
+.spine-photo-summary p {
+  font-size: 13px;
+  line-height: 1.7;
+  margin: 10px 0 16px;
+}
+.spine-photo-summary .button {
+  font-size: 12px;
+}
+.spine-camera {
+  margin-left: 8px;
+}
 .spine-preview {
   position: sticky;
   top: 12px;
@@ -1057,10 +1275,18 @@ h3 {
   outline-offset: 3px;
 }
 .spine-crop-controls {
-  grid-column: 2;
+  margin-top: 16px;
   background: #f4f3eb;
   border-radius: 7px;
   padding: 16px;
+}
+.spine-crop-controls summary {
+  cursor: pointer;
+  font-size: 12px;
+  color: #526b50;
+}
+.spine-crop-controls[open] summary {
+  margin-bottom: 16px;
 }
 .spine-crop-controls p {
   font-size: 12px;
@@ -1100,6 +1326,36 @@ h3 {
   .spine-editor-layout {
     grid-template-columns: 82px minmax(0, 1fr);
     gap: 16px;
+  }
+  .spine-photo-workspace {
+    padding: 12px;
+  }
+  .spine-photo-layout {
+    grid-template-columns: minmax(0, 1fr) 76px;
+    gap: 10px;
+  }
+  .spine-photo-layout .spine-preview {
+    padding: 12px 6px;
+  }
+  .spine-photo-heading h4 {
+    font-size: 17px;
+  }
+  .spine-photo-heading p {
+    font-size: 11px;
+  }
+  .spine-crop-stage {
+    height: 320px;
+  }
+  .spine-photo-transform {
+    gap: 12px;
+  }
+  .spine-photo-transform .button {
+    font-size: 11px;
+    padding: 8px;
+  }
+  .spine-camera {
+    margin-left: 0;
+    margin-top: 8px;
   }
   .spine-preview {
     padding-left: 8px;

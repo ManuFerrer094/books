@@ -398,23 +398,40 @@ async function setRange(page: Page, label: string, value: string) {
     input.dispatchEvent(new Event('change', { bubbles: true }));
   }, value);
 }
-async function photoFixture(page: Page) {
-  const data = await page.evaluate(() => {
-    const canvas = document.createElement('canvas');
-    canvas.width = 300;
-    canvas.height = 900;
-    const ctx = canvas.getContext('2d')!;
-    ctx.fillStyle = '#51624e';
-    ctx.fillRect(0, 0, 300, 900);
-    ctx.fillStyle = '#a4b497';
-    ctx.fillRect(20, 0, 12, 900);
-    ctx.fillStyle = '#f7edcf';
-    ctx.font = '28px serif';
-    ctx.translate(170, 60);
-    ctx.rotate(Math.PI / 2);
-    ctx.fillText('EL INFINITO EN UN JUNCO', 0, 0);
-    return canvas.toDataURL('image/png').split(',')[1];
-  });
+async function photoFixture(page: Page, withHand = false, horizontal = false) {
+  const data = await page.evaluate(
+    ({ hand, sideways }) => {
+      const canvas = document.createElement('canvas');
+      canvas.width = 300;
+      canvas.height = 900;
+      const ctx = canvas.getContext('2d')!;
+      ctx.fillStyle = '#51624e';
+      ctx.fillRect(0, 0, 300, 900);
+      ctx.fillStyle = '#a4b497';
+      ctx.fillRect(20, 0, 12, 900);
+      if (hand) {
+        ctx.fillStyle = '#d8896f';
+        ctx.fillRect(0, 730, 300, 170);
+      }
+      ctx.fillStyle = '#f7edcf';
+      ctx.font = '28px serif';
+      ctx.translate(170, 60);
+      ctx.rotate(Math.PI / 2);
+      ctx.fillText('EL INFINITO EN UN JUNCO', 0, 0);
+      if (sideways) {
+        const turned = document.createElement('canvas');
+        turned.width = 900;
+        turned.height = 300;
+        const turn = turned.getContext('2d')!;
+        turn.translate(0, 300);
+        turn.rotate(-Math.PI / 2);
+        turn.drawImage(canvas, 0, 0);
+        return turned.toDataURL('image/png').split(',')[1];
+      }
+      return canvas.toDataURL('image/png').split(',')[1];
+    },
+    { hand: withHand, sideways: horizontal },
+  );
   return {
     name: 'lomo.png',
     mimeType: 'image/png',
@@ -596,6 +613,193 @@ test('estantería vacía: añade al final y retira libros del orden', async ({
   await expect.poll(() => shelfIds(page)).toEqual([101]);
 });
 
+async function previewBottomPixel(page: Page) {
+  return page.locator('canvas.photo-spine').evaluate((canvas) => {
+    const image = canvas as HTMLCanvasElement;
+    return [
+      ...image
+        .getContext('2d')!
+        .getImageData(Math.floor(image.width / 2), image.height - 8, 1, 1).data,
+    ].slice(0, 3);
+  });
+}
+async function dragCropControl(
+  page: Page,
+  mobile: boolean,
+  label: string,
+  dx: number,
+  dy: number,
+  during?: () => Promise<void>,
+) {
+  const control = page.getByRole('button', { name: label, exact: true });
+  await control.scrollIntoViewIfNeeded();
+  const box = (await control.boundingBox())!;
+  const from = { x: box.x + box.width / 2, y: box.y + box.height / 2 };
+  const to = { x: from.x + dx, y: from.y + dy };
+  if (mobile) {
+    const session = await page.context().newCDPSession(page);
+    await session.send('Input.dispatchTouchEvent', {
+      type: 'touchStart',
+      touchPoints: [from],
+    });
+    for (let step = 1; step <= 4; step++)
+      await session.send('Input.dispatchTouchEvent', {
+        type: 'touchMove',
+        touchPoints: [
+          { x: from.x + (dx * step) / 4, y: from.y + (dy * step) / 4 },
+        ],
+      });
+    if (during) await during();
+    await session.send('Input.dispatchTouchEvent', {
+      type: 'touchEnd',
+      touchPoints: [],
+    });
+    await session.detach();
+  } else {
+    await page.mouse.move(from.x, from.y);
+    await page.mouse.down();
+    await page.mouse.move(to.x, to.y, { steps: 6 });
+    if (during) await during();
+    await page.mouse.up();
+  }
+}
+
+test('lomos: la foto de cámara abre un recorte táctil que excluye la mano en tiempo real', async ({
+  page,
+  isMobile,
+}, testInfo) => {
+  const mock = await setup(page);
+  await login(page);
+  await page
+    .getByRole('button', { name: 'Ver El infinito en un junco', exact: true })
+    .click();
+  await page
+    .getByRole('button', { name: 'Personalizar lomo', exact: true })
+    .click();
+  const camera = page.getByLabel('Hacer foto del lomo', { exact: true });
+  await expect(camera).toHaveAttribute('capture', 'environment');
+  await camera.setInputFiles(await photoFixture(page, true));
+  await expect(
+    page.getByRole('heading', { name: 'Encuadra solo el lomo' }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole('button', { name: 'Guardar lomo', exact: true }),
+  ).toBeDisabled();
+  await expect.poll(() => previewBottomPixel(page)).toEqual([216, 137, 111]);
+  const frame = page.locator('.spine-crop-frame');
+  const originalHeight = Number(await frame.getAttribute('data-crop-height'));
+  await dragCropControl(
+    page,
+    isMobile,
+    'Ajustar borde inferior del recorte',
+    0,
+    -85,
+    async () => {
+      // Check while the finger/mouse is still down: both frame and output update live.
+      await expect.poll(() => previewBottomPixel(page)).toEqual([81, 98, 78]);
+      expect(Number(await frame.getAttribute('data-crop-height'))).toBeLessThan(
+        originalHeight,
+      );
+    },
+  );
+  const beforeX = Number(await frame.getAttribute('data-crop-x'));
+  await dragCropControl(page, isMobile, 'Mover recorte', 7, 8);
+  await expect
+    .poll(async () => Number(await frame.getAttribute('data-crop-x')))
+    .toBeGreaterThan(beforeX);
+  await expect.poll(() => previewBottomPixel(page)).toEqual([81, 98, 78]);
+  const chosenHeight = await frame.getAttribute('data-crop-height');
+  await page
+    .getByRole('heading', { name: 'Encuadra solo el lomo' })
+    .scrollIntoViewIfNeeded();
+  await page.screenshot({
+    path: testInfo.outputPath('recorte-en-tiempo-real.png'),
+  });
+  await page
+    .getByRole('button', { name: 'Usar este recorte', exact: true })
+    .click();
+  await expect(page.locator('.spine-crop-stage')).not.toBeVisible();
+  await expect(
+    page.getByRole('button', { name: 'Guardar lomo', exact: true }),
+  ).toBeEnabled();
+  await page
+    .getByRole('button', { name: 'Volver a recortar', exact: true })
+    .click();
+  await expect(frame).toHaveAttribute('data-crop-height', chosenHeight!);
+  const bottom = page.getByRole('button', {
+    name: 'Ajustar borde inferior del recorte',
+    exact: true,
+  });
+  await bottom.focus();
+  await bottom.press('ArrowUp');
+  await expect
+    .poll(async () => Number(await frame.getAttribute('data-crop-height')))
+    .toBeLessThan(Number(chosenHeight));
+  await page
+    .getByRole('button', { name: 'Usar este recorte', exact: true })
+    .click();
+  await expect.poll(() => previewBottomPixel(page)).toEqual([81, 98, 78]);
+  await page.getByRole('button', { name: 'Guardar lomo', exact: true }).click();
+  await expect(page.getByText('Lomo guardado.', { exact: true })).toBeVisible();
+  expect(mock.getUploadedPhotos()).toHaveLength(1);
+});
+
+test('lomos: gira y endereza la foto dentro del recorte antes de usarla', async ({
+  page,
+}) => {
+  await setup(page);
+  await login(page);
+  await page
+    .getByRole('button', { name: 'Ver El infinito en un junco', exact: true })
+    .click();
+  await page
+    .getByRole('button', { name: 'Personalizar lomo', exact: true })
+    .click();
+  await page
+    .getByLabel('Foto del lomo', { exact: true })
+    .setInputFiles(await photoFixture(page, false, true));
+  const photo = page.getByLabel('Fotografía original', { exact: true });
+  await expect(photo).toBeVisible();
+  await expect
+    .poll(() =>
+      photo.evaluate(
+        (canvas) =>
+          (canvas as HTMLCanvasElement).width /
+          (canvas as HTMLCanvasElement).height,
+      ),
+    )
+    .toBeGreaterThan(2.9);
+  await page.getByRole('button', { name: 'Girar 90°', exact: true }).click();
+  await expect
+    .poll(() =>
+      photo.evaluate(
+        (canvas) =>
+          (canvas as HTMLCanvasElement).width /
+          (canvas as HTMLCanvasElement).height,
+      ),
+    )
+    .toBeLessThan(0.34);
+  await setRange(page, 'Enderezar', '6');
+  await expect(page.getByLabel('Enderezar')).toHaveValue('6');
+  await expect
+    .poll(() =>
+      photo.evaluate(
+        (canvas) =>
+          (canvas as HTMLCanvasElement).width /
+          (canvas as HTMLCanvasElement).height,
+      ),
+    )
+    .toBeGreaterThan(0.4);
+  await page
+    .getByRole('button', { name: 'Reiniciar marco', exact: true })
+    .click();
+  await page
+    .getByRole('button', { name: 'Usar este recorte', exact: true })
+    .click();
+  await page.getByRole('button', { name: 'Guardar lomo', exact: true }).click();
+  await expect(page.getByText('Lomo guardado.', { exact: true })).toBeVisible();
+});
+
 test('lomos: color, dimensiones, recorte de foto, persistencia y restauración', async ({
   page,
 }, testInfo) => {
@@ -615,9 +819,13 @@ test('lomos: color, dimensiones, recorte de foto, persistencia y restauración',
   await page
     .getByLabel('Foto del lomo', { exact: true })
     .setInputFiles(await photoFixture(page));
+  await page.getByText('Ajustes precisos del recorte', { exact: true }).click();
   await setRange(page, 'Ampliar', '1.5');
   await setRange(page, 'Desplazar horizontalmente', '-0.4');
   await setRange(page, 'Desplazar verticalmente', '0.3');
+  await page
+    .getByRole('button', { name: 'Usar este recorte', exact: true })
+    .click();
   await expect(
     page.getByRole('button', { name: 'Guardar lomo' }),
   ).toBeEnabled();
@@ -697,6 +905,9 @@ test('lomos: valida archivos, recupera una subida fallida y limpia una asociaci�
   });
   await expect(page.getByRole('alert')).toContainText('No podemos leer');
   await input.setInputFiles(await photoFixture(page));
+  await page
+    .getByRole('button', { name: 'Usar este recorte', exact: true })
+    .click();
   await expect(
     page.getByRole('button', { name: 'Guardar lomo' }),
   ).toBeEnabled();
@@ -726,6 +937,9 @@ test('lomos: una respuesta perdida no elimina la foto guardada y una imagen rota
   await page
     .getByLabel('Foto del lomo', { exact: true })
     .setInputFiles(await photoFixture(page));
+  await page
+    .getByRole('button', { name: 'Usar este recorte', exact: true })
+    .click();
   await expect(
     page.getByRole('button', { name: 'Guardar lomo' }),
   ).toBeEnabled();
