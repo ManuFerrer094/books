@@ -1,4 +1,5 @@
 # compiled output
+/.vercel
 /dist
 /node_modules
 /build

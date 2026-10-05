@@ -67,6 +67,8 @@ npm run test:e2e
 
 `dist/` contiene el frontend compilado. Configura la URL de Supabase y la clave pública antes de compilar y añade el dominio real a las redirecciones de Supabase.
 
-El proxy `/api` de Vite se utiliza solo durante el desarrollo. En producción, sirve `dist/` y configura tu servidor para reenviar `/api/*` al backend, quitando el prefijo `/api`. Si publicas la API en otro origen y cambias `VITE_API_URL`, tendrás que permitir ese origen mediante CORS en Nest. `npm run preview` solo sirve para revisar los archivos compilados, sin proxy a la API.
+El repositorio incluye una [configuración de Vercel Services](../DEPLOYMENT.md): frontend en `/` y Nest en `/api`, con llamadas desde el navegador al mismo dominio. En Vercel y con `vercel dev`, Nest recibe y acepta el prefijo `/api` y Vite no utiliza su proxy local. No se necesitan bindings para la aplicación estática.
+
+Fuera de Vercel, el proxy local de Vite reenvía `/api/*` al backend independiente quitando el prefijo `/api`. Si publicas la API en otro origen y cambias `VITE_API_URL`, tendrás que permitir ese origen mediante CORS en Nest. `npm run preview` solo sirve para revisar los archivos compilados, sin proxy a la API.
 
 Las fuentes gratuitas DM Sans y Lora se sirven desde `public/fonts/`, junto con sus licencias. Los datos de libros y las portadas dependen de la disponibilidad de los catálogos; las portadas ausentes tienen una cubierta de texto.

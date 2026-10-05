@@ -1,5 +1,7 @@
 ## Interfaz web
 
+Despliegue de frontend y backend como un único proyecto de Vercel: [guía de Vercel Services](DEPLOYMENT.md).
+
 La interfaz React vive en [`frontend/`](frontend/README.md): acceso con Supabase, alta de libros por ISBN o cámara y estantes personales de lectura. Consulta su guía para arrancarla en **http://localhost:5173**.
 
 ## Usuarios y biblioteca personal
