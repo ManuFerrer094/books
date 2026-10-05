@@ -1,3 +1,7 @@
+## Interfaz web
+
+La interfaz React vive en [`frontend/`](frontend/README.md): acceso con Supabase, alta de libros por ISBN o cámara y estantes personales de lectura. Consulta su guía para arrancarla en **http://localhost:5173**.
+
 ## Usuarios y biblioteca personal
 
 Configuración de Supabase, migración y ejemplos de Swagger: [guía de autenticación](src/auth/README.md).

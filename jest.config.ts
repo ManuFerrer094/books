@@ -12,6 +12,7 @@ const config: Config = {
   moduleFileExtensions: ['js', 'json', 'ts'],
   rootDir: '.',
   testRegex: '.*\\.spec\\.ts$',
+  testPathIgnorePatterns: ['/node_modules/', '<rootDir>/frontend/'],
   extensionsToTreatAsEsm: ['.ts'],
   transform: {
     '^.+\\.(t|j)s$': [
