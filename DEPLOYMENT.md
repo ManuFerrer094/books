@@ -43,6 +43,8 @@ Las variables `VITE_` se incorporan al JavaScript durante la compilación. No po
 
 Configura el dominio final en Supabase → Authentication → URL Configuration (Site URL y Redirect URLs). Para probar altas desde previews, autoriza también las URLs de preview correspondientes. Aplica previamente las [migraciones y permisos de Supabase](src/auth/README.md).
 
+Para esta versión, aplica **una vez y antes de desplegar el backend y frontend** la [migración 003 de estantería](src/books/database/migrations/003_bookshelf.sql), después de 001 y 002. Además del orden y los ajustes personales, crea el bucket privado `book-spines` y sus políticas de acceso. No hacen falta nuevas variables ni almacenar imágenes en Vercel. La migración debe estar aplicada para que los endpoints de biblioteca puedan seleccionar los nuevos campos.
+
 ## Prueba conjunta de los servicios
 
 Con una CLI actual de Vercel, desde la raíz:

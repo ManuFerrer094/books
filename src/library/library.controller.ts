@@ -32,6 +32,7 @@ import {
   UpdateLibraryBookDto,
 } from './library.dto.js';
 import { LibraryService } from './library.service.js';
+import { SpineDto } from './bookshelf.dto.js';
 
 @Controller('me/books')
 @ApiTags('library')
@@ -98,6 +99,17 @@ export class LibraryController {
     @Body() input: UpdateLibraryBookDto,
   ) {
     return this.library.update(request, bookId, input);
+  }
+
+  @Patch(':bookId/spine')
+  @ApiOperation({ summary: 'Personalizar el lomo de mi ejemplar' })
+  @ApiOkResponse({ type: LibraryBookDto })
+  updateSpine(
+    @Req() request: AuthRequest,
+    @Param('bookId', ParseIntPipe) bookId: number,
+    @Body() input: SpineDto,
+  ) {
+    return this.library.updateSpine(request, bookId, input);
   }
 
   @Delete(':bookId')

@@ -1,6 +1,8 @@
 import { jest } from '@jest/globals';
 import {
   InternalServerErrorException,
+  BadRequestException,
+  ConflictException,
   NotFoundException,
 } from '@nestjs/common';
 import { LibraryService } from './library.service.js';
@@ -133,5 +135,148 @@ describe('LibraryService', () => {
     await expect(service.get(identity, 1)).rejects.toBeInstanceOf(
       InternalServerErrorException,
     );
+  });
+  it('saves order with the user token and maps stale revisions to conflict', async () => {
+    const rpc = jest
+      .fn<any>()
+      .mockResolvedValue({ data: { book_ids: [1], revision: 1 }, error: null });
+    clients.create.mockReturnValue({ rpc });
+    expect(
+      await service.saveBookshelf(identity, { book_ids: [1], revision: 0 }),
+    ).toEqual({ book_ids: [1], revision: 1 });
+    expect(clients.create).toHaveBeenCalledWith('token-a');
+    expect(rpc).toHaveBeenCalledWith('save_bookshelf_order', {
+      requested_book_ids: [1],
+      expected_revision: 0,
+    });
+    rpc.mockResolvedValue({ data: null, error: { code: '40001' } });
+    await expect(
+      service.saveBookshelf(identity, { book_ids: [1], revision: 0 }),
+    ).rejects.toBeInstanceOf(ConflictException);
+  });
+  it('reconciles persisted order with additions and removals without writing on GET', async () => {
+    const layoutQuery = {
+      select: jest.fn<any>(),
+      eq: jest.fn<any>(),
+      maybeSingle: jest.fn<any>().mockResolvedValue({
+        data: { book_ids: [2, 99, 2], revision: 7 },
+        error: null,
+      }),
+    };
+    layoutQuery.select.mockReturnValue(layoutQuery);
+    layoutQuery.eq.mockReturnValue(layoutQuery);
+    query.order.mockReturnValueOnce(query).mockResolvedValueOnce({
+      data: [{ book_id: 1 }, { book_id: 2 }, { book_id: 3 }],
+      error: null,
+    });
+    clients.create.mockReturnValue({
+      from: jest
+        .fn<any>()
+        .mockImplementation((table: string) =>
+          table === 'user_bookshelf' ? layoutQuery : query,
+        ),
+    });
+    expect(await service.bookshelf(identity)).toEqual({
+      book_ids: [2, 1, 3],
+      revision: 7,
+    });
+    expect(layoutQuery.eq).toHaveBeenCalledWith('user_id', 'user-a');
+    expect(query.eq).toHaveBeenCalledWith('user_id', 'user-a');
+    expect(query.upsert).not.toHaveBeenCalled();
+  });
+  it('updates personal appearance without touching shared metadata or status', async () => {
+    query.maybeSingle
+      .mockResolvedValueOnce({ data: row, error: null })
+      .mockResolvedValueOnce({
+        data: {
+          ...row,
+          spine_color: '#123456',
+          spine_width: 40,
+          spine_height: 200,
+        },
+        error: null,
+      });
+    const saved = await service.updateSpine(identity, 1, {
+      color: '#123456',
+      width: 40,
+      height: 200,
+    });
+    expect(saved.spine).toEqual({
+      color: '#123456',
+      width: 40,
+      height: 200,
+      image_path: null,
+    });
+    expect(query.update).toHaveBeenCalledWith({
+      spine_color: '#123456',
+      spine_width: 40,
+      spine_height: 200,
+      updated_at: expect.any(String),
+    });
+    expect(query.eq).toHaveBeenCalledWith('user_id', 'user-a');
+  });
+  it('rejects image paths belonging to another user or book', async () => {
+    await expect(
+      service.updateSpine(identity, 1, { image_path: 'victim/1/photo.jpg' }),
+    ).rejects.toBeInstanceOf(BadRequestException);
+    await expect(
+      service.updateSpine(identity, 1, { image_path: 'user-a/2/photo.jpg' }),
+    ).rejects.toBeInstanceOf(BadRequestException);
+    expect(query.update).not.toHaveBeenCalled();
+  });
+  it('verifies images and cleans up the old photo only after saving', async () => {
+    const list = jest
+      .fn<any>()
+      .mockResolvedValue({ data: [{ name: 'new.jpg' }], error: null });
+    const remove = jest.fn<any>().mockResolvedValue({ error: null });
+    clients.create.mockReturnValue({
+      from: jest.fn().mockReturnValue(query),
+      storage: { from: jest.fn().mockReturnValue({ list, remove }) },
+    });
+    query.maybeSingle
+      .mockResolvedValueOnce({
+        data: { ...row, spine_image_path: 'user-a/1/old.jpg' },
+        error: null,
+      })
+      .mockResolvedValueOnce({
+        data: { ...row, spine_image_path: 'user-a/1/new.jpg' },
+        error: null,
+      });
+    await service.updateSpine(identity, 1, { image_path: 'user-a/1/new.jpg' });
+    expect(list).toHaveBeenCalledWith('user-a/1', { search: 'new.jpg' });
+    expect(remove).toHaveBeenCalledWith(['user-a/1/old.jpg']);
+    expect(query.update.mock.invocationCallOrder[0]).toBeLessThan(
+      remove.mock.invocationCallOrder[0],
+    );
+  });
+  it('does not delete the old photo if the association fails', async () => {
+    const remove = jest.fn<any>();
+    clients.create.mockReturnValue({
+      from: jest.fn().mockReturnValue(query),
+      storage: { from: jest.fn().mockReturnValue({ remove }) },
+    });
+    query.maybeSingle
+      .mockResolvedValueOnce({
+        data: { ...row, spine_image_path: 'user-a/1/old.jpg' },
+        error: null,
+      })
+      .mockResolvedValueOnce({ data: null, error: { code: 'unknown' } });
+    await expect(
+      service.updateSpine(identity, 1, { image_path: null }),
+    ).rejects.toBeInstanceOf(InternalServerErrorException);
+    expect(remove).not.toHaveBeenCalled();
+  });
+  it('removes a personal photo after removing its library entry', async () => {
+    const remove = jest.fn<any>().mockResolvedValue({ error: null });
+    clients.create.mockReturnValue({
+      from: jest.fn().mockReturnValue(query),
+      storage: { from: jest.fn().mockReturnValue({ remove }) },
+    });
+    query.maybeSingle.mockResolvedValue({
+      data: { book_id: 1, spine_image_path: 'user-a/1/photo.jpg' },
+      error: null,
+    });
+    await service.remove(identity, 1);
+    expect(remove).toHaveBeenCalledWith(['user-a/1/photo.jpg']);
   });
 });

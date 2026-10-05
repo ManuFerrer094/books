@@ -9,6 +9,7 @@ import {
   ValidateIf,
 } from 'class-validator';
 import { BookDto } from '../books/dto/book.dto.js';
+import { SpineDto } from './bookshelf.dto.js';
 
 export enum ReadingStatus {
   Pending = 'pending',
@@ -45,6 +46,8 @@ export class UpdateLibraryBookDto {
 }
 
 export class LibraryBookDto {
+  @ApiProperty({ type: SpineDto })
+  spine: SpineDto;
   @ApiProperty({ example: 1 })
   book_id: number;
   @ApiProperty({ enum: ReadingStatus })

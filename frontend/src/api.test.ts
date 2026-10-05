@@ -6,7 +6,7 @@ vi.mock('./supabase', () => ({ supabase: { auth } }));
 beforeEach(() => {
   vi.restoreAllMocks();
   auth.getSession.mockResolvedValue({
-    data: { session: { access_token: 'user-token' } },
+    data: { session: { access_token: 'user-token', user: { id: 'user-a' } } },
   });
 });
 describe('cliente de biblioteca', () => {
@@ -28,6 +28,13 @@ describe('cliente de biblioteca', () => {
     auth.getSession.mockResolvedValue({ data: { session: null } });
     const request = vi.spyOn(globalThis, 'fetch');
     await expect(api('/me/books')).rejects.toBeInstanceOf(ApiError);
+    expect(request).not.toHaveBeenCalled();
+  });
+  it('impide que un guardado pendiente se aplique a una cuenta diferente', async () => {
+    const request = vi.spyOn(globalThis, 'fetch');
+    await expect(
+      api('/me/bookshelf', { method: 'PUT' }, 'user-b'),
+    ).rejects.toMatchObject({ status: 401 });
     expect(request).not.toHaveBeenCalled();
   });
   it('acepta una eliminación sin body y comunica los catálogos no disponibles', async () => {

@@ -113,7 +113,7 @@ export function StatusSelect({
   const id = useId();
   return (
     <div className="field">
-      <label htmlFor={id}>Estante</label>
+      <label htmlFor={id}>Estado de lectura</label>
       <select
         id={id}
         value={value}

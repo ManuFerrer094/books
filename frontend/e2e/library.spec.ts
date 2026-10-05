@@ -36,9 +36,31 @@ async function setup(
     missing?: boolean;
     empty?: boolean;
     failPersonalOnce?: boolean;
+    many?: boolean;
+    failShelfOnce?: boolean;
+    staleShelfOnce?: boolean;
+    failUploadOnce?: boolean;
+    failSpineOnce?: boolean;
+    brokenPhoto?: boolean;
+    ambiguousPhotoOnce?: boolean;
   } = {},
 ) {
   let books = options.empty ? [] : fixtureBooks();
+  if (options.many)
+    for (let i = 9; i <= 24; i++)
+      books.push({
+        ...fixtureBooks()[i % 8],
+        book_id: i,
+        book: { ...fixtureBooks()[i % 8].book, id: i, title: `Historia ${i}` },
+      });
+  let layout = { book_ids: books.map((entry) => entry.book_id), revision: 0 };
+  let failShelf = options.failShelfOnce;
+  let staleShelf = options.staleShelfOnce;
+  let failUpload = options.failUploadOnce;
+  let failSpine = options.failSpineOnce;
+  let ambiguous = options.ambiguousPhotoOnce;
+  const deletedPhotos: string[] = [];
+  const uploadedPhotos: { path: string; size: number }[] = [];
   let nextId = 100;
   let catalog: Book | null = null;
   let creates = 0;
@@ -70,6 +92,46 @@ async function setup(
             },
     });
   });
+  await page.route(/\/storage\/v1\//, async (route) => {
+    const path = new URL(route.request().url()).pathname;
+    const method = route.request().method();
+    if (method === 'DELETE') {
+      deletedPhotos.push(...route.request().postDataJSON().prefixes);
+      return route.fulfill({ json: [] });
+    }
+    if (path.includes('/object/sign/') && method === 'POST')
+      return route.fulfill({
+        json: {
+          signedURL: `/object/sign/book-spines/${path.split('/book-spines/')[1]}?token=fixture`,
+        },
+      });
+    if (path.includes('/object/sign/') && method === 'GET') {
+      if (options.brokenPhoto) return route.fulfill({ status: 404, body: '' });
+      return route.fulfill({
+        contentType: 'image/png',
+        body: Buffer.from(
+          'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVQIHWP4z8DwHwAFgAI/ScLbtAAAAABJRU5ErkJggg==',
+          'base64',
+        ),
+      });
+    }
+    if (path.includes('/object/book-spines/') && method === 'POST') {
+      if (failUpload) {
+        failUpload = false;
+        return route.fulfill({
+          status: 500,
+          json: { message: 'Upload failed' },
+        });
+      }
+      const key = path.split('/object/')[1];
+      uploadedPhotos.push({
+        path: key.replace('book-spines/', ''),
+        size: route.request().postDataBuffer()?.length ?? 0,
+      });
+      return route.fulfill({ json: { Key: key, Id: 'photo-id' } });
+    }
+    return route.fulfill({ status: 404, json: {} });
+  });
   await page.route('**/api/**', async (route) => {
     const request = route.request();
     const path = new URL(request.url()).pathname.replace('/api', '');
@@ -79,9 +141,40 @@ async function setup(
     }
     const method = request.method();
     const body =
-      method === 'POST' || method === 'PATCH' ? request.postDataJSON() : null;
+      method === 'POST' || method === 'PATCH' || method === 'PUT'
+        ? request.postDataJSON()
+        : null;
     if (path === '/me/books' && method === 'GET')
       return route.fulfill({ json: books });
+    if (path === '/me/bookshelf' && method === 'GET') {
+      const remaining = new Set(books.map((entry) => entry.book_id));
+      const saved = layout.book_ids.filter((id) => {
+        const found = remaining.has(id);
+        remaining.delete(id);
+        return found;
+      });
+      return route.fulfill({
+        json: { ...layout, book_ids: [...saved, ...remaining] },
+      });
+    }
+    if (path === '/me/bookshelf' && method === 'PUT') {
+      if (failShelf) {
+        failShelf = false;
+        return route.fulfill({ status: 500, json: {} });
+      }
+      if (staleShelf) {
+        staleShelf = false;
+        layout = {
+          book_ids: [...layout.book_ids].reverse(),
+          revision: layout.revision + 1,
+        };
+        return route.fulfill({ status: 409, json: {} });
+      }
+      if (body.revision !== layout.revision)
+        return route.fulfill({ status: 409, json: {} });
+      layout = { book_ids: body.book_ids, revision: layout.revision + 1 };
+      return route.fulfill({ json: layout });
+    }
     if (path === '/books' && method === 'POST') {
       creates++;
       catalog = {
@@ -127,7 +220,27 @@ async function setup(
       if (!existing) books.push(entry);
       return route.fulfill({ json: entry });
     }
-    const id = Number(path.split('/').pop());
+    const id = Number(path.split('/')[3]);
+    if (path.endsWith('/spine') && method === 'PATCH') {
+      if (failSpine) {
+        failSpine = false;
+        return route.fulfill({ status: 500, json: {} });
+      }
+      const entry = books.find((b) => b.book_id === id)!;
+      const previous = entry.spine?.image_path;
+      entry.spine = body;
+      if (previous && previous !== body.image_path)
+        deletedPhotos.push(previous);
+      if (ambiguous) {
+        ambiguous = false;
+        return route.abort('failed');
+      }
+      return route.fulfill({ json: entry });
+    }
+    if (method === 'GET') {
+      const entry = books.find((b) => b.book_id === id);
+      return route.fulfill(entry ? { json: entry } : { status: 404, json: {} });
+    }
     if (method === 'PATCH') {
       const entry = books.find((b) => b.book_id === id)!;
       entry.status = body.status;
@@ -139,7 +252,13 @@ async function setup(
     }
     await route.fulfill({ status: 404, json: {} });
   });
-  return { getCreates: () => creates };
+  return {
+    getCreates: () => creates,
+    getLayout: () => layout,
+    getBooks: () => books,
+    getDeletedPhotos: () => deletedPhotos,
+    getUploadedPhotos: () => uploadedPhotos,
+  };
 }
 async function login(page: Page) {
   await page.goto('/', { waitUntil: 'domcontentloaded' });
@@ -173,8 +292,12 @@ test('biblioteca: buscar, cambiar de estante, conservar la sesión y quitar con 
   await expect(page.getByRole('button', { name: /^Ver / })).toHaveCount(1);
   await page.getByRole('button', { name: 'Ver La librería' }).click();
   await expect(page.getByRole('dialog')).toBeVisible();
-  await page.getByLabel('Estante', { exact: true }).selectOption('read');
-  await expect(page.getByLabel('Estante', { exact: true })).toHaveValue('read');
+  await page
+    .getByLabel('Estado de lectura', { exact: true })
+    .selectOption('read');
+  await expect(
+    page.getByLabel('Estado de lectura', { exact: true }),
+  ).toHaveValue('read');
   await page.getByRole('button', { name: 'Cerrar', exact: true }).click();
   await page.reload({ waitUntil: 'domcontentloaded' });
   await page
@@ -183,7 +306,9 @@ test('biblioteca: buscar, cambiar de estante, conservar la sesión y quitar con 
     .click();
   await expect(page.getByRole('button', { name: /^Ver / })).toHaveCount(3);
   await page.getByRole('button', { name: 'Ver La librería' }).click();
-  await expect(page.getByLabel('Estante', { exact: true })).toHaveValue('read');
+  await expect(
+    page.getByLabel('Estado de lectura', { exact: true }),
+  ).toHaveValue('read');
   await page.getByRole('button', { name: 'Quitar de mi biblioteca' }).click();
   await expect(page.getByRole('button', { name: 'Sí, quitar' })).toBeVisible();
   await page.getByRole('button', { name: 'Conservarlo' }).click();
@@ -210,7 +335,9 @@ test('alta por ISBN: valida y evita duplicados', async ({ page }) => {
   await page.getByRole('button', { name: 'Añadir a mi biblioteca' }).click();
   await expect(page.getByRole('alert')).toContainText('Ese ISBN no es válido');
   await page.getByLabel('ISBN', { exact: true }).fill('9788410989788');
-  await page.getByLabel('Estante', { exact: true }).selectOption('reading');
+  await page
+    .getByLabel('Estado de lectura', { exact: true })
+    .selectOption('reading');
   await page.getByRole('button', { name: 'Añadir a mi biblioteca' }).click();
   await expect(page.getByRole('dialog')).not.toBeVisible();
   await expect(page.getByRole('button', { name: /^Ver / })).toHaveCount(1);
@@ -222,9 +349,9 @@ test('alta por ISBN: valida y evita duplicados', async ({ page }) => {
   await expect(page.getByRole('dialog')).not.toBeVisible();
   await expect(page.getByRole('button', { name: /^Ver / })).toHaveCount(1);
   await page.getByRole('button', { name: /^Ver / }).click();
-  await expect(page.getByLabel('Estante', { exact: true })).toHaveValue(
-    'reading',
-  );
+  await expect(
+    page.getByLabel('Estado de lectura', { exact: true }),
+  ).toHaveValue('reading');
 });
 
 test('ISBN no encontrado permite alta manual y reintentar sin duplicar el catálogo', async ({
@@ -252,6 +379,366 @@ test('ISBN no encontrado permite alta manual y reintentar sin duplicar el catál
     page.getByRole('button', { name: 'Ver Una historia especial' }),
   ).toBeVisible();
   expect(mock.getCreates()).toBe(1);
+});
+
+async function shelfIds(page: Page) {
+  return page
+    .locator('[data-shelf-book]')
+    .evaluateAll((nodes) =>
+      nodes.map((node) => Number((node as HTMLElement).dataset.shelfBook)),
+    );
+}
+async function setRange(page: Page, label: string, value: string) {
+  await page.getByLabel(label).evaluate((input, next) => {
+    Object.getOwnPropertyDescriptor(
+      HTMLInputElement.prototype,
+      'value',
+    )!.set!.call(input, next);
+    input.dispatchEvent(new Event('input', { bubbles: true }));
+    input.dispatchEvent(new Event('change', { bubbles: true }));
+  }, value);
+}
+async function photoFixture(page: Page) {
+  const data = await page.evaluate(() => {
+    const canvas = document.createElement('canvas');
+    canvas.width = 300;
+    canvas.height = 900;
+    const ctx = canvas.getContext('2d')!;
+    ctx.fillStyle = '#51624e';
+    ctx.fillRect(0, 0, 300, 900);
+    ctx.fillStyle = '#a4b497';
+    ctx.fillRect(20, 0, 12, 900);
+    ctx.fillStyle = '#f7edcf';
+    ctx.font = '28px serif';
+    ctx.translate(170, 60);
+    ctx.rotate(Math.PI / 2);
+    ctx.fillText('EL INFINITO EN UN JUNCO', 0, 0);
+    return canvas.toDataURL('image/png').split(',')[1];
+  });
+  return {
+    name: 'lomo.png',
+    mimeType: 'image/png',
+    buffer: Buffer.from(data, 'base64'),
+  };
+}
+
+test('estantería: baldas automáticas, controles, arrastre entre filas y persistencia', async ({
+  page,
+  isMobile,
+}, testInfo) => {
+  const mock = await setup(page, { many: true });
+  await login(page);
+  await expect(
+    page.getByRole('button', { name: 'Portadas', exact: true }),
+  ).toHaveAttribute('aria-pressed', 'true');
+  await page.getByRole('button', { name: 'Estantería', exact: true }).click();
+  await expect(page.locator('[data-shelf-book]')).toHaveCount(24);
+  expect(await page.locator('[data-shelf-row]').count()).toBeGreaterThan(1);
+  const original = Array.from({ length: 24 }, (_, i) => i + 1);
+  expect(await shelfIds(page)).toEqual(original);
+  await page.screenshot({
+    path: testInfo.outputPath('estanteria.png'),
+    fullPage: true,
+  });
+  expect(
+    await page.evaluate(() => document.documentElement.scrollWidth),
+  ).toBeLessThanOrEqual(page.viewportSize()!.width);
+  await page
+    .getByRole('button', { name: 'Ordenar estantería', exact: true })
+    .click();
+  await page
+    .getByRole('button', {
+      name: 'Mover El infinito en un junco después',
+      exact: true,
+    })
+    .click();
+  await expect.poll(() => shelfIds(page)).toEqual([2, 1, ...original.slice(2)]);
+  await expect(
+    page.getByText('Orden guardado.', { exact: true }),
+  ).toBeVisible();
+  const grip = page.getByRole('button', {
+    name: 'Mover El infinito en un junco',
+    exact: true,
+  });
+  await grip.focus();
+  await grip.press('ArrowRight');
+  await expect
+    .poll(() => shelfIds(page))
+    .toEqual([2, 3, 1, ...original.slice(3)]);
+  await expect(
+    page.getByText('Orden guardado.', { exact: true }),
+  ).toBeVisible();
+  await page.setViewportSize({
+    width: page.viewportSize()!.width,
+    height: 1800,
+  });
+  await grip.scrollIntoViewIfNeeded();
+  const target = page.locator('[data-shelf-row="1"] [data-shelf-book]').first();
+  const targetId = Number(await target.getAttribute('data-shelf-book'));
+  const from = (await grip.boundingBox())!;
+  const to = (await target.boundingBox())!;
+  const fromPoint = { x: from.x + from.width / 2, y: from.y + from.height / 2 };
+  const toPoint = { x: to.x + to.width / 4, y: to.y + 60 };
+  const beforeDrag = mock.getLayout().book_ids;
+  const expected = beforeDrag.filter((id) => id !== 1);
+  expected.splice(expected.indexOf(targetId), 0, 1);
+  if (isMobile) {
+    const session = await page.context().newCDPSession(page);
+    await session.send('Input.dispatchTouchEvent', {
+      type: 'touchStart',
+      touchPoints: [fromPoint],
+    });
+    await session.send('Input.dispatchTouchEvent', {
+      type: 'touchMove',
+      touchPoints: [{ x: fromPoint.x + 12, y: fromPoint.y }],
+    });
+    await session.send('Input.dispatchTouchEvent', {
+      type: 'touchMove',
+      touchPoints: [toPoint],
+    });
+    await expect(page.locator('.spine-drag-preview')).toBeVisible();
+    await session.send('Input.dispatchTouchEvent', {
+      type: 'touchEnd',
+      touchPoints: [],
+    });
+    await session.detach();
+  } else {
+    await page.mouse.move(fromPoint.x, fromPoint.y);
+    await page.mouse.down();
+    await page.mouse.move(toPoint.x, toPoint.y, { steps: 12 });
+    await expect(page.locator('.spine-drag-preview')).toBeVisible();
+    await page.mouse.up();
+  }
+  await expect.poll(() => shelfIds(page)).toEqual(expected);
+  await expect.poll(() => mock.getLayout().revision).toBe(3);
+  await page.reload({ waitUntil: 'domcontentloaded' });
+  await expect(
+    page.getByRole('button', { name: 'Portadas', exact: true }),
+  ).toHaveAttribute('aria-pressed', 'true');
+  await page.getByRole('button', { name: 'Estantería', exact: true }).click();
+  await expect.poll(() => shelfIds(page)).toEqual(expected);
+  await page.getByLabel('Buscar por título, autor o ISBN').fill('libreria');
+  await expect(page.locator('[data-shelf-book]')).toHaveCount(1);
+  await expect(
+    page.getByRole('button', { name: 'Ordenar estantería', exact: true }),
+  ).toBeDisabled();
+  await page.getByLabel('Buscar por título, autor o ISBN').fill('');
+  await page
+    .getByRole('navigation')
+    .getByRole('button', { name: /^Leídos/ })
+    .click();
+  await expect(
+    page.getByRole('button', { name: 'Ordenar estantería', exact: true }),
+  ).toBeDisabled();
+});
+
+test('estantería: recupera el orden al fallar y permite reintentar', async ({
+  page,
+}) => {
+  const mock = await setup(page, { failShelfOnce: true });
+  await login(page);
+  await page.getByRole('button', { name: 'Estantería', exact: true }).click();
+  await page
+    .getByRole('button', { name: 'Ordenar estantería', exact: true })
+    .click();
+  await page
+    .getByRole('button', {
+      name: 'Mover El infinito en un junco después',
+      exact: true,
+    })
+    .click();
+  await expect(page.getByRole('alert')).toContainText('Se ha recuperado');
+  expect(await shelfIds(page)).toEqual([1, 2, 3, 4, 5, 6, 7, 8]);
+  await page.getByRole('button', { name: 'Reintentar guardado' }).click();
+  await expect.poll(() => shelfIds(page)).toEqual([2, 1, 3, 4, 5, 6, 7, 8]);
+  await expect.poll(() => mock.getLayout().revision).toBe(1);
+});
+
+test('estantería: un conflicto recarga el orden de la otra sesión', async ({
+  page,
+}) => {
+  await setup(page, { staleShelfOnce: true });
+  await login(page);
+  await page.getByRole('button', { name: 'Estantería', exact: true }).click();
+  await page
+    .getByRole('button', { name: 'Ordenar estantería', exact: true })
+    .click();
+  await page
+    .getByRole('button', {
+      name: 'Mover El infinito en un junco después',
+      exact: true,
+    })
+    .click();
+  await expect.poll(() => shelfIds(page)).toEqual([8, 7, 6, 5, 4, 3, 2, 1]);
+});
+
+test('estantería vacía: añade al final y retira libros del orden', async ({
+  page,
+}) => {
+  await setup(page, { empty: true });
+  await login(page);
+  await page.getByRole('button', { name: 'Estantería', exact: true }).click();
+  await expect(page.getByText('Aquí empieza tu estantería.')).toBeVisible();
+  await expect(page.locator('[data-shelf-row]')).toHaveCount(1);
+  for (const isbn of ['9788410989788', '9780140328721']) {
+    await page
+      .getByRole('button', { name: 'Añadir un libro', exact: true })
+      .first()
+      .click();
+    await page.getByLabel('ISBN', { exact: true }).fill(isbn);
+    await page.getByRole('button', { name: 'Añadir a mi biblioteca' }).click();
+    await expect(page.getByRole('dialog')).not.toBeVisible();
+  }
+  await expect.poll(() => shelfIds(page)).toEqual([100, 101]);
+  await page.getByRole('button', { name: /^Ver / }).first().click();
+  await page.getByRole('button', { name: 'Quitar de mi biblioteca' }).click();
+  await page.getByRole('button', { name: 'Sí, quitar' }).click();
+  await expect.poll(() => shelfIds(page)).toEqual([101]);
+});
+
+test('lomos: color, dimensiones, recorte de foto, persistencia y restauración', async ({
+  page,
+}, testInfo) => {
+  const mock = await setup(page);
+  await login(page);
+  await page
+    .getByRole('button', { name: 'Ver El infinito en un junco', exact: true })
+    .click();
+  await page
+    .getByRole('button', { name: 'Personalizar lomo', exact: true })
+    .click();
+  await page
+    .getByRole('button', { name: 'Color #733f45', exact: true })
+    .click();
+  await setRange(page, 'Grosor', '54');
+  await setRange(page, 'Altura', '224');
+  await page
+    .getByLabel('Foto del lomo', { exact: true })
+    .setInputFiles(await photoFixture(page));
+  await setRange(page, 'Ampliar', '1.5');
+  await setRange(page, 'Desplazar horizontalmente', '-0.4');
+  await setRange(page, 'Desplazar verticalmente', '0.3');
+  await expect(
+    page.getByRole('button', { name: 'Guardar lomo' }),
+  ).toBeEnabled();
+  expect(
+    await page
+      .locator('canvas.photo-spine')
+      .evaluate((canvas) => (canvas as HTMLCanvasElement).height),
+  ).toBe(1024);
+  await page
+    .getByRole('heading', { name: 'Tu libro, tal como lo recuerdas.' })
+    .scrollIntoViewIfNeeded();
+  await page.screenshot({ path: testInfo.outputPath('personalizar-lomo.png') });
+  await page.getByRole('button', { name: 'Guardar lomo' }).click();
+  await expect(page.getByText('Lomo guardado.', { exact: true })).toBeVisible();
+  const appearance = mock.getBooks()[0].spine!;
+  expect(appearance).toMatchObject({
+    color: '#733f45',
+    width: 54,
+    height: 224,
+  });
+  expect(appearance.image_path).toMatch(/\/1\/[\da-f-]+\.jpg$/);
+  expect(mock.getUploadedPhotos()[0].size).toBeLessThan(5 * 1024 * 1024);
+  await page.getByRole('button', { name: 'Cerrar', exact: true }).click();
+  await page.reload({ waitUntil: 'domcontentloaded' });
+  await page.getByRole('button', { name: 'Estantería', exact: true }).click();
+  await expect(
+    page.locator('[data-shelf-book="1"] .book-spine img'),
+  ).toBeVisible();
+  await page
+    .getByRole('button', { name: 'Ver El infinito en un junco', exact: true })
+    .click();
+  await page
+    .getByRole('button', { name: 'Personalizar lomo', exact: true })
+    .click();
+  await page
+    .getByRole('button', { name: 'Restaurar aspecto automático' })
+    .click();
+  await page.getByRole('button', { name: 'Guardar lomo' }).click();
+  await expect(page.getByText('Lomo guardado.', { exact: true })).toBeVisible();
+  expect(mock.getBooks()[0].spine).toEqual({
+    color: null,
+    width: null,
+    height: null,
+    image_path: null,
+  });
+  expect(mock.getDeletedPhotos()).toContain(appearance.image_path);
+});
+
+test('lomos: valida archivos, recupera una subida fallida y limpia una asociación fallida', async ({
+  page,
+}) => {
+  const mock = await setup(page, { failUploadOnce: true, failSpineOnce: true });
+  await login(page);
+  await page
+    .getByRole('button', { name: 'Ver El infinito en un junco', exact: true })
+    .click();
+  await page
+    .getByRole('button', { name: 'Personalizar lomo', exact: true })
+    .click();
+  const input = page.getByLabel('Foto del lomo', { exact: true });
+  await input.setInputFiles({
+    name: 'documento.txt',
+    mimeType: 'text/plain',
+    buffer: Buffer.from('No es una foto'),
+  });
+  await expect(page.getByRole('alert')).toContainText('JPEG');
+  await input.setInputFiles({
+    name: 'enorme.jpg',
+    mimeType: 'image/jpeg',
+    buffer: Buffer.alloc(5242881),
+  });
+  await expect(page.getByRole('alert')).toContainText('5 MB');
+  await input.setInputFiles({
+    name: 'roto.png',
+    mimeType: 'image/png',
+    buffer: Buffer.from('Not an image'),
+  });
+  await expect(page.getByRole('alert')).toContainText('No podemos leer');
+  await input.setInputFiles(await photoFixture(page));
+  await expect(
+    page.getByRole('button', { name: 'Guardar lomo' }),
+  ).toBeEnabled();
+  await page.getByRole('button', { name: 'Guardar lomo' }).click();
+  await expect(page.getByRole('alert')).toContainText('subir la foto');
+  await page.getByRole('button', { name: 'Guardar lomo' }).click();
+  await expect(page.getByRole('alert')).toContainText('No se ha guardado');
+  expect(mock.getDeletedPhotos()).toContain(mock.getUploadedPhotos()[0].path);
+  await page.getByRole('button', { name: 'Guardar lomo' }).click();
+  await expect(page.getByText('Lomo guardado.', { exact: true })).toBeVisible();
+});
+
+test('lomos: una respuesta perdida no elimina la foto guardada y una imagen rota muestra el título', async ({
+  page,
+}) => {
+  const mock = await setup(page, {
+    ambiguousPhotoOnce: true,
+    brokenPhoto: true,
+  });
+  await login(page);
+  await page
+    .getByRole('button', { name: 'Ver El infinito en un junco', exact: true })
+    .click();
+  await page
+    .getByRole('button', { name: 'Personalizar lomo', exact: true })
+    .click();
+  await page
+    .getByLabel('Foto del lomo', { exact: true })
+    .setInputFiles(await photoFixture(page));
+  await expect(
+    page.getByRole('button', { name: 'Guardar lomo' }),
+  ).toBeEnabled();
+  await page.getByRole('button', { name: 'Guardar lomo' }).click();
+  await expect(page.getByText('Lomo guardado.', { exact: true })).toBeVisible();
+  expect(mock.getDeletedPhotos()).not.toContain(
+    mock.getUploadedPhotos()[0].path,
+  );
+  await page.getByRole('button', { name: 'Cerrar', exact: true }).click();
+  await page.getByRole('button', { name: 'Estantería', exact: true }).click();
+  await expect(
+    page.locator('[data-shelf-book="1"] .spine-lettering strong'),
+  ).toHaveText('El infinito en un junco');
 });
 
 test('registro con confirmación por correo y cámara sin permiso', async ({

@@ -116,6 +116,8 @@ export default function App() {
   return (
     <>
       <LibraryView
+        key={session.user.id}
+        ownerId={session.user.id}
         books={personalBooks}
         loading={loading}
         error={error}
@@ -146,12 +148,13 @@ export default function App() {
       )}
       {entry && (
         <BookDetails
+          ownerId={session.user.id}
           entry={entry}
           onClose={() => setSelected(null)}
           onUpdated={(next) => {
             if (activeUser.current !== userId) return;
             upsert(next);
-            setToast('Libro colocado en su estante.');
+            setToast('Cambios del libro guardados.');
           }}
           onRemoved={(id) => {
             if (activeUser.current !== userId) return;

@@ -7,6 +7,7 @@ import { AuthController } from './auth.controller.js';
 import { AuthGuard } from './auth.guard.js';
 import { AdminGuard } from './admin.guard.js';
 import { LibraryController } from '../library/library.controller.js';
+import { BookshelfController } from '../library/bookshelf.controller.js';
 import { LibraryService } from '../library/library.service.js';
 import { BooksController } from '../books/books.controller.js';
 import { BooksService } from '../books/books.service.js';
@@ -28,6 +29,9 @@ describe('Authenticated HTTP routes', () => {
     addByIsbn: jest.fn<any>(),
     update: jest.fn<any>(),
     remove: jest.fn<any>(),
+    bookshelf: jest.fn<any>(),
+    saveBookshelf: jest.fn<any>(),
+    updateSpine: jest.fn<any>(),
   };
   const books = {
     getBooks: jest.fn<any>(),
@@ -52,7 +56,12 @@ describe('Authenticated HTTP routes', () => {
     library.list.mockResolvedValue([]);
     books.getBooks.mockResolvedValue([]);
     const module = await Test.createTestingModule({
-      controllers: [AuthController, LibraryController, BooksController],
+      controllers: [
+        AuthController,
+        LibraryController,
+        BooksController,
+        BookshelfController,
+      ],
       providers: [
         AuthGuard,
         AdminGuard,
@@ -68,14 +77,17 @@ describe('Authenticated HTTP routes', () => {
   afterEach(async () => {
     await app.close();
   });
-  it.each(['/me/books', '/auth/me', '/books', '/books/isbn/9780140328721'])(
-    'requires authentication for %s',
-    async (url) => {
-      await request(app.getHttpServer()).get(url).expect(401);
-      expect(auth.verify).not.toHaveBeenCalled();
-      expect(lookup.lookup).not.toHaveBeenCalled();
-    },
-  );
+  it.each([
+    '/me/books',
+    '/me/bookshelf',
+    '/auth/me',
+    '/books',
+    '/books/isbn/9780140328721',
+  ])('requires authentication for %s', async (url) => {
+    await request(app.getHttpServer()).get(url).expect(401);
+    expect(auth.verify).not.toHaveBeenCalled();
+    expect(lookup.lookup).not.toHaveBeenCalled();
+  });
   it.each(['Bearer invalid', 'Basic abc', 'Bearer token extra'])(
     'rejects invalid authorization %s',
     async (value) => {
@@ -131,6 +143,83 @@ describe('Authenticated HTTP routes', () => {
       .set('Authorization', 'Bearer valid-a')
       .send({})
       .expect(400);
+  });
+  it('reads and saves only the verified user bookshelf', async () => {
+    const layout = { book_ids: [2, 1], revision: 3 };
+    library.bookshelf.mockResolvedValue(layout);
+    library.saveBookshelf.mockResolvedValue({ ...layout, revision: 4 });
+    await request(app.getHttpServer())
+      .get('/me/bookshelf')
+      .set('Authorization', 'Bearer valid-a')
+      .expect(200)
+      .expect('Cache-Control', 'no-store')
+      .expect(layout);
+    await request(app.getHttpServer())
+      .put('/me/bookshelf')
+      .set('Authorization', 'Bearer valid-a')
+      .send(layout)
+      .expect(200)
+      .expect({ ...layout, revision: 4 });
+    expect(library.saveBookshelf).toHaveBeenCalledWith(
+      expect.objectContaining({ accessToken: 'valid-a' }),
+      expect.objectContaining(layout),
+    );
+  });
+  it.each([
+    { book_ids: [1, 1], revision: 0 },
+    { book_ids: [0], revision: 0 },
+    { book_ids: [1], revision: -1 },
+    { book_ids: [1], revision: '0' },
+    { book_ids: [1] },
+    { book_ids: null, revision: 0 },
+    { book_ids: [1], revision: 0, user_id: 'victim' },
+  ])('rejects invalid order %j', async (body) => {
+    await request(app.getHttpServer())
+      .put('/me/bookshelf')
+      .set('Authorization', 'Bearer valid-a')
+      .send(body)
+      .expect(400);
+    expect(library.saveBookshelf).not.toHaveBeenCalled();
+  });
+  it.each([
+    { width: 27 },
+    { height: 241 },
+    { color: 'red' },
+    { image_path: 'https://example.com/a.jpg' },
+    { status: 'read' },
+    { user_id: 'victim' },
+  ])('rejects invalid spine data %j', async (body) => {
+    await request(app.getHttpServer())
+      .patch('/me/books/1/spine')
+      .set('Authorization', 'Bearer valid-a')
+      .send(body)
+      .expect(400);
+    expect(library.updateSpine).not.toHaveBeenCalled();
+  });
+  it('allows spine overrides and restoration without a reading status', async () => {
+    for (const body of [
+      { color: '#123456', width: 28, height: 240 },
+      { color: null, width: null, height: null, image_path: null },
+    ]) {
+      await request(app.getHttpServer())
+        .patch('/me/books/1/spine')
+        .set('Authorization', 'Bearer valid-a')
+        .send(body)
+        .expect(200);
+      expect(library.updateSpine).toHaveBeenLastCalledWith(
+        expect.objectContaining({ accessToken: 'valid-a' }),
+        1,
+        expect.objectContaining(body),
+      );
+    }
+    await request(app.getHttpServer())
+      .patch('/me/books/1/spine')
+      .send({ width: 40 })
+      .expect(401);
+    await request(app.getHttpServer())
+      .put('/me/bookshelf')
+      .send({ book_ids: [], revision: 0 })
+      .expect(401);
   });
   it('removes a personal relationship without invoking catalog deletion', async () => {
     await request(app.getHttpServer())

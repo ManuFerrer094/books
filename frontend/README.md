@@ -43,6 +43,11 @@ En Supabase → Authentication → URL Configuration, añade `http://localhost:5
 - Organizar tu biblioteca en **Por leer**, **Leyendo** y **Leídos**.
 - Buscar por título, autor o ISBN; ordenar por fecha de incorporación, título o autor.
 - Consultar la ficha y quitar un libro de tu biblioteca mediante confirmación.
+- Cambiar entre **Portadas** (vista inicial) y **Estantería**, con baldas de madera y lomos que se adaptan al ancho de pantalla.
+- En **Todos mis libros**, sin búsqueda, pulsar **Ordenar estantería** y arrastrar el asa de los lomos con ratón o pantalla táctil. También puedes usar las flechas de cada libro o enfocar el asa y pulsar las teclas ←/→. El orden se guarda en tu cuenta.
+- Abrir la ficha y pulsar **Personalizar lomo** para ajustar color, grosor y altura o subir una foto. Se admiten JPEG, PNG y WebP de hasta 5 MB; puedes ampliar y desplazar el recorte antes de guardar. **Restaurar aspecto automático** elimina tus ajustes y la foto al guardar.
+
+Antes de desplegar esta versión, aplica la [migración 003](../src/books/database/migrations/003_bookshelf.sql) después de las migraciones 001 y 002. Crea los campos personales, la tabla de orden y el bucket privado `book-spines` con sus políticas RLS. No requiere nuevas variables de entorno. Las baldas son automáticas: el mismo orden puede ocupar distintas filas en móvil y ordenador. Los libros nuevos se colocan al final y los retirados desaparecen del orden.
 
 Los cambios se guardan en la API, no solo en el navegador. Añadir el mismo libro vuelve a mostrar su relación existente sin duplicarla ni modificar su estado de lectura. Quitar un libro elimina únicamente su relación con tu biblioteca.
 

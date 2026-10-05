@@ -11,11 +11,22 @@ export interface Book {
   cover_url: string | null;
 }
 export interface LibraryBook {
+  spine?: SpineAppearance | null;
   book_id: number;
   status: ReadingStatus;
   added_at: string;
   updated_at: string;
   book: Book;
+}
+export interface SpineAppearance {
+  color: string | null;
+  width: number | null;
+  height: number | null;
+  image_path: string | null;
+}
+export interface BookshelfLayout {
+  book_ids: number[];
+  revision: number;
 }
 export const shelves = [
   {

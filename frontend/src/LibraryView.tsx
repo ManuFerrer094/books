@@ -15,8 +15,10 @@ import {
 import { Brand, Cover } from './components';
 import { shelves, type LibraryBook } from './types';
 import { visibleBooks } from './library';
+import Bookshelf from './Bookshelf';
 
 interface Props {
+  ownerId: string;
   books: LibraryBook[];
   loading: boolean;
   error: string;
@@ -34,6 +36,7 @@ const shelfIcons = {
   read: Check,
 };
 export default function LibraryView({
+  ownerId,
   books,
   loading,
   error,
@@ -47,6 +50,7 @@ export default function LibraryView({
   const [shelf, setShelf] = useState<string>('all');
   const [query, setQuery] = useState('');
   const [sort, setSort] = useState('recent');
+  const [view, setView] = useState<'covers' | 'shelf'>('covers');
   const visible = visibleBooks(books, shelf, query, sort);
   const current = shelves.find((item) => item.id === shelf)!;
   const reading = books.filter((entry) => entry.status === 'reading');
@@ -143,6 +147,23 @@ export default function LibraryView({
                 {visible.length} {visible.length === 1 ? 'libro' : 'libros'}
               </span>
             </div>
+            <div
+              className="library-view-switch segmented"
+              aria-label="Vista de la biblioteca"
+            >
+              <button
+                aria-pressed={view === 'covers'}
+                onClick={() => setView('covers')}
+              >
+                Portadas
+              </button>
+              <button
+                aria-pressed={view === 'shelf'}
+                onClick={() => setView('shelf')}
+              >
+                Estantería
+              </button>
+            </div>
             <div className="collection-tools">
               <label className="search-field">
                 <Search size={17} strokeWidth={1.5} />
@@ -154,14 +175,19 @@ export default function LibraryView({
                   placeholder="Busca una historia, un autor…"
                 />
               </label>
-              <label className="sort-field">
-                <span className="sr-only">Ordenar libros</span>
-                <select value={sort} onChange={(e) => setSort(e.target.value)}>
-                  <option value="recent">Más recientes</option>
-                  <option value="title">Por título</option>
-                  <option value="author">Por autor</option>
-                </select>
-              </label>
+              {view === 'covers' && (
+                <label className="sort-field">
+                  <span className="sr-only">Ordenar libros</span>
+                  <select
+                    value={sort}
+                    onChange={(e) => setSort(e.target.value)}
+                  >
+                    <option value="recent">Más recientes</option>
+                    <option value="title">Por título</option>
+                    <option value="author">Por autor</option>
+                  </select>
+                </label>
+              )}
             </div>
             {error ? (
               <div className="empty-state" role="alert">
@@ -186,6 +212,16 @@ export default function LibraryView({
                   </div>
                 ))}
               </div>
+            ) : view === 'shelf' ? (
+              <Bookshelf
+                ownerId={ownerId}
+                books={visible}
+                allBooks={books}
+                canOrganize={shelf === 'all' && !query.trim()}
+                onSelect={onSelect}
+                onAdd={onAdd}
+                onReload={onRetry}
+              />
             ) : visible.length ? (
               <div className="book-grid">
                 {visible.map((entry) => (

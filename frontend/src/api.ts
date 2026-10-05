@@ -20,12 +20,21 @@ const messages: Record<number, string> = {
   503: 'No podemos consultar todos los catálogos ahora. Inténtalo luego o añade el libro a mano.',
 };
 
-export async function api<T>(path: string, init: RequestInit = {}): Promise<T> {
+export async function api<T>(
+  path: string,
+  init: RequestInit = {},
+  expectedUserId?: string,
+): Promise<T> {
   if (!supabase) throw new Error('La conexión todavía no está configurada.');
   const {
     data: { session },
   } = await supabase.auth.getSession();
   if (!session) throw new ApiError(401, messages[401]);
+  if (expectedUserId && session.user.id !== expectedUserId)
+    throw new ApiError(
+      401,
+      'La cuenta ha cambiado. Vuelve a abrir tu biblioteca.',
+    );
   let response: Response;
   try {
     response = await fetch(`${import.meta.env.VITE_API_URL || '/api'}${path}`, {

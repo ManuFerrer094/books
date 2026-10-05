@@ -3,13 +3,16 @@ import { Trash2 } from 'lucide-react';
 import { api, errorMessage } from './api';
 import { Cover, Dialog, Feedback, StatusSelect } from './components';
 import type { LibraryBook, ReadingStatus } from './types';
+import SpineEditor from './SpineEditor';
 
 export default function BookDetails({
+  ownerId,
   entry,
   onClose,
   onUpdated,
   onRemoved,
 }: {
+  ownerId: string;
   entry: LibraryBook;
   onClose: () => void;
   onUpdated: (entry: LibraryBook) => void;
@@ -18,6 +21,7 @@ export default function BookDetails({
   const [busy, setBusy] = useState(false);
   const [confirm, setConfirm] = useState(false);
   const [error, setError] = useState('');
+  const [editingSpine, setEditingSpine] = useState(false);
   const book = entry.book;
   async function changeStatus(status: ReadingStatus) {
     setBusy(true);
@@ -95,6 +99,24 @@ export default function BookDetails({
           </p>
         </div>
       </div>
+      {editingSpine ? (
+        <SpineEditor
+          key={entry.book_id}
+          ownerId={ownerId}
+          entry={entry}
+          onUpdated={onUpdated}
+          onClose={() => setEditingSpine(false)}
+          onBusy={setBusy}
+        />
+      ) : (
+        <button
+          className="button secondary personalize-spine"
+          disabled={busy}
+          onClick={() => setEditingSpine(true)}
+        >
+          Personalizar lomo
+        </button>
+      )}
       <Feedback error={error} />
       <div className="details-footer">
         {confirm ? (
