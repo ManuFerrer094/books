@@ -3,19 +3,29 @@
   "services": {
     "app": {
       "root": ".",
-      "framework": "nestjs"
+      "framework": "nestjs",
+      "entrypoint": "src/main.ts",
+      "installCommand": "npm ci",
+      "buildCommand": "npm run build"
     },
     "frontend": {
       "root": "frontend",
-      "framework": "vite"
+      "framework": "vite",
+      "installCommand": "npm ci",
+      "buildCommand": "npm run build",
+      "outputDirectory": "dist"
     }
   },
   "rewrites": [
     {
-      "source": "/(.*)",
+      "source": "/api/:path*",
       "destination": {
         "service": "app"
       }
+    },
+    {
+      "source": "/(.*)",
+      "destination": { "service": "frontend" }
     }
   ]
 }

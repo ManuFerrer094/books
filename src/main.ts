@@ -19,7 +19,7 @@ async function bootstrap() {
   }
   const app = await NestFactory.create(AppModule);
   console.log('Nest Vercel check: before configuration');
-  configureApp(app);
+  try { configureApp(app); } catch (error) { console.error('Nest configuration failed:', error); throw error; }
   console.log('Nest Vercel check: before initialization');
   await app.init();
   console.log('Nest Vercel check: initialized');
