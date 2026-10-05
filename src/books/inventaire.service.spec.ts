@@ -1,6 +1,6 @@
 import { jest } from '@jest/globals';
 import { ServiceUnavailableException } from '@nestjs/common';
-import { InventaireService } from './inventaire.service';
+import { InventaireService } from './inventaire.service.js';
 
 describe('InventaireService', () => {
   let fetchMock: ReturnType<typeof jest.spyOn<typeof globalThis, 'fetch'>>;

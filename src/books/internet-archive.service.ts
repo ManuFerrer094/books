@@ -1,6 +1,6 @@
 import { Injectable, ServiceUnavailableException } from '@nestjs/common';
-import { CreateBookDto } from './dto/create-book.dto';
-import { normalizeLanguage, normalizePublicationDate } from './book-metadata';
+import { CreateBookDto } from './dto/create-book.dto.js';
+import { normalizeLanguage, normalizePublicationDate } from './book-metadata.js';
 import {
   authorNames,
   fetchObject,
@@ -9,8 +9,8 @@ import {
   record,
   strings,
   text,
-} from './provider-utils';
-import { isbnKeys } from './isbn';
+} from './provider-utils.js';
+import { isbnKeys } from './isbn.js';
 
 @Injectable()
 export class InternetArchiveService {

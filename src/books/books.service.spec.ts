@@ -6,8 +6,8 @@ import {
   InternalServerErrorException,
   NotFoundException,
 } from '@nestjs/common';
-import { BooksService } from './books.service';
-import { SUPABASE_CLIENT } from './supabase.provider';
+import { BooksService } from './books.service.js';
+import { SUPABASE_CLIENT } from './supabase.provider.js';
 
 describe('BooksService', () => {
   let service: BooksService;

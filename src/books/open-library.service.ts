@@ -1,6 +1,6 @@
 import { Injectable, ServiceUnavailableException } from '@nestjs/common';
-import { CreateBookDto } from './dto/create-book.dto';
-import { normalizeLanguage, normalizePublicationDate } from './book-metadata';
+import { CreateBookDto } from './dto/create-book.dto.js';
+import { normalizeLanguage, normalizePublicationDate } from './book-metadata.js';
 
 function record(value: unknown): Record<string, unknown> | null {
   return value !== null && typeof value === 'object' && !Array.isArray(value)

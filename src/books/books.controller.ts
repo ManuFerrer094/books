@@ -13,14 +13,14 @@ import {
   UseGuards,
   ValidationPipe,
 } from '@nestjs/common';
-import { BooksService } from './books.service';
-import { AuthGuard } from '../auth/auth.guard';
-import { AdminGuard } from '../auth/admin.guard';
-import { CreateBookDto } from './dto/create-book.dto';
-import { UpdateBookDto } from './dto/update-book.dto';
-import { BookDto } from './dto/book.dto';
-import { IsbnLookupDto } from './dto/isbn-lookup.dto';
-import { IsbnLookupService } from './isbn-lookup.service';
+import { BooksService } from './books.service.js';
+import { AuthGuard } from '../auth/auth.guard.js';
+import { AdminGuard } from '../auth/admin.guard.js';
+import { CreateBookDto } from './dto/create-book.dto.js';
+import { UpdateBookDto } from './dto/update-book.dto.js';
+import { BookDto } from './dto/book.dto.js';
+import { IsbnLookupDto } from './dto/isbn-lookup.dto.js';
+import { IsbnLookupService } from './isbn-lookup.service.js';
 import {
   ApiBadRequestResponse,
   ApiBearerAuth,

@@ -1,7 +1,7 @@
 import { jest } from '@jest/globals';
 import { ConfigService } from '@nestjs/config';
 import { ServiceUnavailableException } from '@nestjs/common';
-import { GoogleBooksService } from './google-books.service';
+import { GoogleBooksService } from './google-books.service.js';
 
 describe('GoogleBooksService', () => {
   const service = new GoogleBooksService(

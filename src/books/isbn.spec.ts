@@ -1,5 +1,5 @@
 import { BadRequestException } from '@nestjs/common';
-import { isbnKeys } from './isbn';
+import { isbnKeys } from './isbn.js';
 
 describe('ISBN validation', () => {
   it.each([

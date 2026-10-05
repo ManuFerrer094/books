@@ -1,9 +1,9 @@
 import type { INestApplication } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import request from 'supertest';
-import { AppController } from './app.controller';
-import { AppService } from './app.service';
-import { configureApp } from './app.setup';
+import { AppController } from './app.controller.js';
+import { AppService } from './app.service.js';
+import { configureApp } from './app.setup.js';
 
 describe.each([
   { name: 'standalone Nest', env: {}, prefix: '' },

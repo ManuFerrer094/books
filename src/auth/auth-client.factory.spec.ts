@@ -1,5 +1,5 @@
 import { ConfigService } from '@nestjs/config';
-import { AuthClientFactory } from './auth-client.factory';
+import { AuthClientFactory } from './auth-client.factory.js';
 
 describe('AuthClientFactory', () => {
   it('creates independent clients with a public key, never the catalog secret', () => {

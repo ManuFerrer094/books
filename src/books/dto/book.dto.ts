@@ -1,6 +1,6 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { CreateBookDto } from './create-book.dto';
-import { AuthorDto } from './author.dto';
+import { CreateBookDto } from './create-book.dto.js';
+import { AuthorDto } from './author.dto.js';
 
 export class BookDto extends CreateBookDto {
   @ApiProperty({ type: [AuthorDto] })

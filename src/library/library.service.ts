@@ -7,15 +7,15 @@ import {
   UnauthorizedException,
 } from '@nestjs/common';
 import type { PostgrestError } from '@supabase/supabase-js';
-import { AuthClientFactory } from '../auth/auth-client.factory';
-import { IsbnLookupService } from '../books/isbn-lookup.service';
-import type { AuthRequest } from '../auth/auth.guard';
+import { AuthClientFactory } from '../auth/auth-client.factory.js';
+import { IsbnLookupService } from '../books/isbn-lookup.service.js';
+import type { AuthRequest } from '../auth/auth.guard.js';
 import {
   AddLibraryBookDto,
   AddLibraryIsbnDto,
   ReadingStatus,
   UpdateLibraryBookDto,
-} from './library.dto';
+} from './library.dto.js';
 
 const LIBRARY_SELECT =
   'book_id, status, added_at, updated_at, books(*, book_authors(authors(id, name)))';

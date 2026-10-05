@@ -1,5 +1,5 @@
 import { ValidateIf } from 'class-validator';
-import { CreateBookDto } from './create-book.dto';
+import { CreateBookDto } from './create-book.dto.js';
 import { ApiPropertyOptional } from '@nestjs/swagger';
 
 export class UpdateBookDto extends CreateBookDto {

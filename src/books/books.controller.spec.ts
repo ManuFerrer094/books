@@ -6,11 +6,11 @@ import {
   ConflictException,
 } from '@nestjs/common';
 import request from 'supertest';
-import { BooksController } from './books.controller';
-import { AuthGuard } from '../auth/auth.guard';
-import { AdminGuard } from '../auth/admin.guard';
-import { BooksService } from './books.service';
-import { IsbnLookupService } from './isbn-lookup.service';
+import { BooksController } from './books.controller.js';
+import { AuthGuard } from '../auth/auth.guard.js';
+import { AdminGuard } from '../auth/admin.guard.js';
+import { BooksService } from './books.service.js';
+import { IsbnLookupService } from './isbn-lookup.service.js';
 
 describe('BooksController', () => {
   let app: INestApplication;

@@ -3,11 +3,11 @@ import {
   InternalServerErrorException,
   NotFoundException,
 } from '@nestjs/common';
-import { LibraryService } from './library.service';
-import { AuthClientFactory } from '../auth/auth-client.factory';
-import { IsbnLookupService } from '../books/isbn-lookup.service';
-import type { AuthRequest } from '../auth/auth.guard';
-import { ReadingStatus } from './library.dto';
+import { LibraryService } from './library.service.js';
+import { AuthClientFactory } from '../auth/auth-client.factory.js';
+import { IsbnLookupService } from '../books/isbn-lookup.service.js';
+import type { AuthRequest } from '../auth/auth.guard.js';
+import { ReadingStatus } from './library.dto.js';
 
 describe('LibraryService', () => {
   let query: Record<string, jest.Mock<any>>;

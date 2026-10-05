@@ -1,9 +1,9 @@
 import { Injectable, ServiceUnavailableException } from '@nestjs/common';
-import { OpenLibraryService } from './open-library.service';
-import { GoogleBooksService } from './google-books.service';
-import { InventaireService } from './inventaire.service';
-import { InternetArchiveService } from './internet-archive.service';
-import { CreateBookDto } from './dto/create-book.dto';
+import { OpenLibraryService } from './open-library.service.js';
+import { GoogleBooksService } from './google-books.service.js';
+import { InventaireService } from './inventaire.service.js';
+import { InternetArchiveService } from './internet-archive.service.js';
+import { CreateBookDto } from './dto/create-book.dto.js';
 
 export type BookSource =
   'openlibrary' | 'googlebooks' | 'inventaire' | 'internetarchive';

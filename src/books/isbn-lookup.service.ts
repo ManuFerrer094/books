@@ -3,10 +3,10 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { BooksService } from './books.service';
-import { BookProvidersService } from './book-providers.service';
-import { isbnKeys } from './isbn';
-import { IsbnLookupDto } from './dto/isbn-lookup.dto';
+import { BooksService } from './books.service.js';
+import { BookProvidersService } from './book-providers.service.js';
+import { isbnKeys } from './isbn.js';
+import { IsbnLookupDto } from './dto/isbn-lookup.dto.js';
 
 @Injectable()
 export class IsbnLookupService {

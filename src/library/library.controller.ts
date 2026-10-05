@@ -23,15 +23,15 @@ import {
   ApiTags,
   ApiUnauthorizedResponse,
 } from '@nestjs/swagger';
-import { AuthGuard } from '../auth/auth.guard';
-import type { AuthRequest } from '../auth/auth.guard';
+import { AuthGuard } from '../auth/auth.guard.js';
+import type { AuthRequest } from '../auth/auth.guard.js';
 import {
   AddLibraryBookDto,
   AddLibraryIsbnDto,
   LibraryBookDto,
   UpdateLibraryBookDto,
-} from './library.dto';
-import { LibraryService } from './library.service';
+} from './library.dto.js';
+import { LibraryService } from './library.service.js';
 
 @Controller('me/books')
 @ApiTags('library')

@@ -1,10 +1,10 @@
 import { jest } from '@jest/globals';
 import { ServiceUnavailableException } from '@nestjs/common';
-import { BookProvidersService } from './book-providers.service';
-import { OpenLibraryService } from './open-library.service';
-import { GoogleBooksService } from './google-books.service';
-import { InventaireService } from './inventaire.service';
-import { InternetArchiveService } from './internet-archive.service';
+import { BookProvidersService } from './book-providers.service.js';
+import { OpenLibraryService } from './open-library.service.js';
+import { GoogleBooksService } from './google-books.service.js';
+import { InventaireService } from './inventaire.service.js';
+import { InternetArchiveService } from './internet-archive.service.js';
 
 describe('BookProvidersService', () => {
   const providers = Array.from({ length: 4 }, () => ({

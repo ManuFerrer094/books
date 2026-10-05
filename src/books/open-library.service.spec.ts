@@ -1,6 +1,6 @@
 import { jest } from '@jest/globals';
 import { ServiceUnavailableException } from '@nestjs/common';
-import { OpenLibraryService } from './open-library.service';
+import { OpenLibraryService } from './open-library.service.js';
 
 describe('OpenLibraryService', () => {
   const service = new OpenLibraryService();

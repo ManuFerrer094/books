@@ -5,9 +5,9 @@ import {
   InternalServerErrorException,
   NotFoundException,
 } from '@nestjs/common';
-import { BooksService } from './books.service';
-import { BookProvidersService } from './book-providers.service';
-import { IsbnLookupService } from './isbn-lookup.service';
+import { BooksService } from './books.service.js';
+import { BookProvidersService } from './book-providers.service.js';
+import { IsbnLookupService } from './isbn-lookup.service.js';
 
 describe('IsbnLookupService', () => {
   const books = {

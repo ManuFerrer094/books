@@ -2,15 +2,15 @@ import { jest } from '@jest/globals';
 import { Test } from '@nestjs/testing';
 import { INestApplication, UnauthorizedException } from '@nestjs/common';
 import request from 'supertest';
-import { AuthService } from './auth.service';
-import { AuthController } from './auth.controller';
-import { AuthGuard } from './auth.guard';
-import { AdminGuard } from './admin.guard';
-import { LibraryController } from '../library/library.controller';
-import { LibraryService } from '../library/library.service';
-import { BooksController } from '../books/books.controller';
-import { BooksService } from '../books/books.service';
-import { IsbnLookupService } from '../books/isbn-lookup.service';
+import { AuthService } from './auth.service.js';
+import { AuthController } from './auth.controller.js';
+import { AuthGuard } from './auth.guard.js';
+import { AdminGuard } from './admin.guard.js';
+import { LibraryController } from '../library/library.controller.js';
+import { LibraryService } from '../library/library.service.js';
+import { BooksController } from '../books/books.controller.js';
+import { BooksService } from '../books/books.service.js';
+import { IsbnLookupService } from '../books/isbn-lookup.service.js';
 
 describe('Authenticated HTTP routes', () => {
   let app: INestApplication;

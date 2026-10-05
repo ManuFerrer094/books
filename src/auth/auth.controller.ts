@@ -18,16 +18,16 @@ import {
   ApiTags,
   ApiUnauthorizedResponse,
 } from '@nestjs/swagger';
-import { AuthService } from './auth.service';
-import { AuthGuard } from './auth.guard';
-import type { AuthRequest } from './auth.guard';
+import { AuthService } from './auth.service.js';
+import { AuthGuard } from './auth.guard.js';
+import type { AuthRequest } from './auth.guard.js';
 import {
   AuthResponseDto,
   AuthUserDto,
   LoginDto,
   RefreshDto,
   RegisterDto,
-} from './auth.dto';
+} from './auth.dto.js';
 
 @Controller('auth')
 @ApiTags('auth')

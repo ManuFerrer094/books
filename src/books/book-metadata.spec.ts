@@ -1,4 +1,4 @@
-import { normalizeLanguage, normalizePublicationDate } from './book-metadata';
+import { normalizeLanguage, normalizePublicationDate } from './book-metadata.js';
 
 describe('Publication date normalization', () => {
   it.each([

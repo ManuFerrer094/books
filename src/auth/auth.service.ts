@@ -7,8 +7,8 @@ import {
   UnauthorizedException,
 } from '@nestjs/common';
 import type { Session, User } from '@supabase/supabase-js';
-import { AuthClientFactory } from './auth-client.factory';
-import { AuthResponseDto, LoginDto, RegisterDto } from './auth.dto';
+import { AuthClientFactory } from './auth-client.factory.js';
+import { AuthResponseDto, LoginDto, RegisterDto } from './auth.dto.js';
 
 @Injectable()
 export class AuthService {

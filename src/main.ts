@@ -1,6 +1,6 @@
 ﻿import { NestFactory } from '@nestjs/core';
-import { AppModule } from './app.module';
-import { configureApp } from './app.setup';
+import { AppModule } from './app.module.js';
+import { configureApp } from './app.setup.js';
 import { getCACertificates, setDefaultCACertificates } from 'node:tls';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import type { INestApplication } from '@nestjs/common';

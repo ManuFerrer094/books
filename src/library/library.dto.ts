@@ -8,7 +8,7 @@ import {
   MinLength,
   ValidateIf,
 } from 'class-validator';
-import { BookDto } from '../books/dto/book.dto';
+import { BookDto } from '../books/dto/book.dto.js';
 
 export enum ReadingStatus {
   Pending = 'pending',

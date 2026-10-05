@@ -4,8 +4,8 @@ import {
   ServiceUnavailableException,
   UnauthorizedException,
 } from '@nestjs/common';
-import { AuthService } from './auth.service';
-import { AuthClientFactory } from './auth-client.factory';
+import { AuthService } from './auth.service.js';
+import { AuthClientFactory } from './auth-client.factory.js';
 
 describe('AuthService', () => {
   const response = {

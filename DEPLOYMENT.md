@@ -2,7 +2,9 @@
 
 ## Versión de Node.js
 
-El backend fija Node.js `24.x` en `package.json`. NestJS 12 publica módulos ESM y la compilación actual genera CommonJS (`require()`); Node.js 24 admite cargar estas dependencias desde CommonJS. Un runtime sin ese soporte falla al arrancar con `ERR_REQUIRE_ESM`.
+El backend fija Node.js `24.x` y `type: module` en `package.json`. NestJS 12 publica módulos ESM; TypeScript compila el backend como ESM con imports relativos terminados en `.js`. Vercel desactiva por defecto el soporte de `require()` para ESM, por lo que fijar Node.js 24 sin migrar la compilación no evita `ERR_REQUIRE_ESM`. No hace falta activar ese soporte mediante `NODE_OPTIONS`.
+
+Después de compilar, `npm run test:runtime` prueba el handler compilado con `--no-experimental-require-module`, comprueba la API, Swagger y el rechazo de peticiones sin autenticación. Esta prueba no necesita credenciales reales ni consulta Supabase.
 
 Utiliza también Node.js 24 en desarrollo. En Vercel, comprueba **Settings → Build and Deployment → Node.js Version** y selecciona **24.x**. El campo `engines.node` del backend fija esta versión para los nuevos despliegues. Después de subir el cambio, crea un nuevo despliegue: el cambio no modifica las funciones de despliegues anteriores.
 

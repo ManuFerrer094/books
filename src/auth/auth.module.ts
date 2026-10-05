@@ -1,9 +1,9 @@
 import { Module } from '@nestjs/common';
-import { AuthClientFactory } from './auth-client.factory';
-import { AuthService } from './auth.service';
-import { AuthGuard } from './auth.guard';
-import { AdminGuard } from './admin.guard';
-import { AuthController } from './auth.controller';
+import { AuthClientFactory } from './auth-client.factory.js';
+import { AuthService } from './auth.service.js';
+import { AuthGuard } from './auth.guard.js';
+import { AdminGuard } from './admin.guard.js';
+import { AuthController } from './auth.controller.js';
 
 @Module({
   controllers: [AuthController],

@@ -8,9 +8,9 @@ import {
 } from '@nestjs/common';
 import { SupabaseClient } from '@supabase/supabase-js';
 import type { PostgrestError } from '@supabase/supabase-js';
-import { SUPABASE_CLIENT } from './supabase.provider';
-import { CreateBookDto } from './dto/create-book.dto';
-import { UpdateBookDto } from './dto/update-book.dto';
+import { SUPABASE_CLIENT } from './supabase.provider.js';
+import { CreateBookDto } from './dto/create-book.dto.js';
+import { UpdateBookDto } from './dto/update-book.dto.js';
 
 const BOOK_SELECT = '*, book_authors(authors(id, name))';
 

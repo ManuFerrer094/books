@@ -1,6 +1,6 @@
 import { Injectable, ServiceUnavailableException } from '@nestjs/common';
-import { CreateBookDto } from './dto/create-book.dto';
-import { normalizePublicationDate } from './book-metadata';
+import { CreateBookDto } from './dto/create-book.dto.js';
+import { normalizePublicationDate } from './book-metadata.js';
 import {
   authorNames,
   fetchObject,
@@ -10,7 +10,7 @@ import {
   record,
   strings,
   text,
-} from './provider-utils';
+} from './provider-utils.js';
 
 // Only edition language claims: the original language of a work may differ.
 const LANGUAGES: Record<string, string> = {
