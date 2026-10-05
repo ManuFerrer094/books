@@ -20,16 +20,17 @@ npm run dev
 
 Abre **http://localhost:5173**. En PowerShell, si la política de ejecución bloquea `npm`, usa `npm.cmd`.
 
-El archivo `.env.local` contiene la configuración local pública y queda fuera de Git. Para otro entorno, copia `.env.example` a `.env.local` y rellena:
+El archivo `.env` de la raíz contiene la configuración compartida y queda fuera de Git. Backend y Vite lo leen desde esa ubicación. Configura estas variables allí:
 
 ```dotenv
 VITE_SUPABASE_URL=https://tu-proyecto.supabase.co
 VITE_SUPABASE_PUBLISHABLE_KEY=tu-clave-publica
+SUPABASE_SERVICE_ROLE_KEY=tu-clave-privada-solo-servidor
 VITE_API_URL=/api
 API_PROXY_TARGET=http://localhost:3000
 ```
 
-La clave pública es la **publishable** o la **anon public** del mismo proyecto que utiliza el backend (`SUPABASE_AUTH_KEY`). No uses la clave **service_role**, **secret** ni `SUPABASE_KEY`: las variables `VITE_` se incluyen en el código del navegador.
+La clave pública es la **publishable** o la **anon public** del mismo proyecto que utiliza el backend (`VITE_SUPABASE_PUBLISHABLE_KEY`). No uses la clave **service_role**, **secret** ni `SUPABASE_SERVICE_ROLE_KEY`: las variables `VITE_` se incluyen en el código del navegador.
 
 En Supabase → Authentication → URL Configuration, añade `http://localhost:5173` a las URLs de redirección permitidas. Si está activada la confirmación por correo, confirma el enlace recibido antes de entrar. La [guía del backend](../src/auth/README.md) explica las tablas, migraciones y permisos necesarios.
 
@@ -72,3 +73,5 @@ El repositorio incluye una [configuración de Vercel Services](../DEPLOYMENT.md)
 Fuera de Vercel, el proxy local de Vite reenvía `/api/*` al backend independiente quitando el prefijo `/api`. Si publicas la API en otro origen y cambias `VITE_API_URL`, tendrás que permitir ese origen mediante CORS en Nest. `npm run preview` solo sirve para revisar los archivos compilados, sin proxy a la API.
 
 Las fuentes gratuitas DM Sans y Lora se sirven desde `public/fonts/`, junto con sus licencias. Los datos de libros y las portadas dependen de la disponibilidad de los catálogos; las portadas ausentes tienen una cubierta de texto.
+
+La URL y la clave pública usan los mismos nombres `VITE_` en frontend y backend. No se admiten los antiguos nombres `SUPABASE_URL`, `SUPABASE_AUTH_KEY` ni `SUPABASE_KEY`. La clave privada se mantiene exclusivamente en `SUPABASE_SERVICE_ROLE_KEY`, sin prefijo `VITE_`. En local, ambos servicios leen `.env` en la raíz.

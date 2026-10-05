@@ -2,6 +2,7 @@ import {
   ConflictException,
   Injectable,
   InternalServerErrorException,
+  Logger,
   NotFoundException,
   UnauthorizedException,
 } from '@nestjs/common';
@@ -31,12 +32,16 @@ function libraryBook(row: any) {
 
 @Injectable()
 export class LibraryService {
+  private readonly logger = new Logger(LibraryService.name);
+
   constructor(
     private readonly clients: AuthClientFactory,
     private readonly lookup: IsbnLookupService,
   ) {}
 
   private fail(error: PostgrestError): never {
+    // Log only the diagnostic code, without query data or credentials.
+    this.logger.error(`Supabase library query failed (code: ${error.code || 'unknown'})`);
     if (error.code === '23503') throw new NotFoundException('Book not found');
     if (error.code === '23505')
       throw new ConflictException('Book already in library');

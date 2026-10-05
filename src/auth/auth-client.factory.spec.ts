@@ -5,9 +5,9 @@ describe('AuthClientFactory', () => {
   it('creates independent clients with a public key, never the catalog secret', () => {
     const factory = new AuthClientFactory(
       new ConfigService({
-        SUPABASE_URL: 'https://example.supabase.co',
-        SUPABASE_AUTH_KEY: 'public-test-key',
-        SUPABASE_KEY: 'private-catalog-key',
+        VITE_SUPABASE_URL: 'https://example.supabase.co',
+        VITE_SUPABASE_PUBLISHABLE_KEY: 'public-test-key',
+        SUPABASE_SERVICE_ROLE_KEY: 'private-catalog-key',
       }),
     );
     const first = factory.create('token-a');
@@ -22,17 +22,17 @@ describe('AuthClientFactory', () => {
   it('requires a separate public auth key instead of silently bypassing RLS', () => {
     const factory = new AuthClientFactory(
       new ConfigService({
-        SUPABASE_URL: 'https://example.supabase.co',
-        SUPABASE_KEY: 'catalog-secret',
+        VITE_SUPABASE_URL: 'https://example.supabase.co',
+        SUPABASE_SERVICE_ROLE_KEY: 'catalog-secret',
       }),
     );
-    expect(() => factory.create()).toThrow('SUPABASE_AUTH_KEY');
+    expect(() => factory.create()).toThrow('VITE_SUPABASE_PUBLISHABLE_KEY');
   });
   it('rejects a server secret in the public auth variable', () => {
     const factory = new AuthClientFactory(
       new ConfigService({
-        SUPABASE_URL: 'https://example.supabase.co',
-        SUPABASE_AUTH_KEY: 'sb_secret_test',
+        VITE_SUPABASE_URL: 'https://example.supabase.co',
+        VITE_SUPABASE_PUBLISHABLE_KEY: 'sb_secret_test',
       }),
     );
     expect(() => factory.create()).toThrow('publishable or anon');

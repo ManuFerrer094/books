@@ -9,7 +9,7 @@ export class AuthClientFactory {
   create(accessToken?: string) {
     // A fresh client prevents one user's sign-in/refresh from changing another
     // request's Authorization header or the shared catalog service client.
-    const publicKey = this.config.getOrThrow<string>('SUPABASE_AUTH_KEY');
+    const publicKey = this.config.getOrThrow<string>('VITE_SUPABASE_PUBLISHABLE_KEY');
     let isSecret = publicKey.startsWith('sb_secret_');
     if (publicKey.split('.').length === 3) {
       try {
@@ -20,9 +20,9 @@ export class AuthClientFactory {
       } catch {}
     }
     if (isSecret)
-      throw new Error('SUPABASE_AUTH_KEY must be a publishable or anon key');
+      throw new Error('VITE_SUPABASE_PUBLISHABLE_KEY must be a publishable or anon key');
     return createClient(
-      this.config.getOrThrow<string>('SUPABASE_URL'),
+      this.config.getOrThrow<string>('VITE_SUPABASE_URL'),
       publicKey,
       {
         auth: {

@@ -6,22 +6,20 @@
    Requiere las tablas originales y la migración 001. Puede ejecutarse de nuevo.
    Crea `user_books`, sus políticas RLS y los permisos del catálogo compartido.
    Conserva los libros, autores y relaciones existentes.
-2. En el `.env` del backend añade `SUPABASE_AUTH_KEY` con la clave **publishable**
+2. En el `.env` del backend añade `VITE_SUPABASE_PUBLISHABLE_KEY` con la clave **publishable**
    (`sb_publishable_...`) o **anon** del proyecto, desde Settings → API Keys.
    No uses la clave secret/service_role en esta variable: el código la rechaza.
-3. El catálogo utiliza `SUPABASE_SERVICE_ROLE_KEY` si existe; en caso contrario,
-   utiliza la variable anterior `SUPABASE_KEY`. Debe ser una clave de servidor
+3. El catálogo utiliza `SUPABASE_SERVICE_ROLE_KEY`. Debe ser una clave de servidor
    secret/service_role para que las importaciones funcionen con los permisos nuevos.
-   La configuración actual del proyecto ya tiene una clave secret en `SUPABASE_KEY`.
 4. Activa email/password en Supabase Auth. Si está activa la confirmación de email,
    confirma el enlace recibido antes de iniciar sesión. Configura Site URL y las
    URLs de redirección para tu entorno en Supabase Auth.
 5. Arranca con `npm.cmd run start:dev` y abre `http://localhost:3000/docs`.
 
 ```dotenv
-SUPABASE_URL=https://tu-proyecto.supabase.co
-SUPABASE_KEY=clave_secret_del_backend_ya_existente
-SUPABASE_AUTH_KEY=clave_publishable_o_anon
+VITE_SUPABASE_URL=https://tu-proyecto.supabase.co
+SUPABASE_SERVICE_ROLE_KEY=clave_secret_del_backend_ya_existente
+VITE_SUPABASE_PUBLISHABLE_KEY=clave_publishable_o_anon
 ```
 
 Las claves de servidor y las contraseñas no deben compartirse ni enviarse al frontend.
@@ -147,3 +145,5 @@ Referencias oficiales:
 - https://supabase.com/docs/guides/auth/passwords
 - https://supabase.com/docs/reference/javascript/auth-getuser
 - https://supabase.com/docs/guides/database/postgres/row-level-security
+
+La URL y la clave pública usan los mismos nombres `VITE_` en frontend y backend. No se admiten los antiguos nombres `SUPABASE_URL`, `SUPABASE_AUTH_KEY` ni `SUPABASE_KEY`. La clave privada se mantiene exclusivamente en `SUPABASE_SERVICE_ROLE_KEY`, sin prefijo `VITE_`. En local, ambos servicios leen `.env` en la raíz.

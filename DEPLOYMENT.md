@@ -31,15 +31,13 @@ Configura estas variables en el proyecto para los entornos Production y Preview 
 
 | Variable                        | Uso                                                                                                        |
 | ------------------------------- | ---------------------------------------------------------------------------------------------------------- |
-| `SUPABASE_URL`                  | URL del proyecto Supabase para Nest                                                                        |
-| `SUPABASE_SERVICE_ROLE_KEY`     | Clave secret/service_role del catálogo, solo servidor. También se admite el nombre anterior `SUPABASE_KEY` |
-| `SUPABASE_AUTH_KEY`             | Clave publishable/anon del mismo proyecto; Nest la utiliza para validar sesiones y acceder a la biblioteca |
-| `VITE_SUPABASE_URL`             | URL de Supabase para el navegador                                                                          |
-| `VITE_SUPABASE_PUBLISHABLE_KEY` | Clave pública publishable/anon para el navegador                                                           |
+| `VITE_SUPABASE_URL` | URL compartida por Nest y el navegador |
+| `SUPABASE_SERVICE_ROLE_KEY` | Clave secret/service_role del catálogo, solo servidor |
+| `VITE_SUPABASE_PUBLISHABLE_KEY` | Clave pública compartida por Nest y el navegador |
 | `VITE_API_URL`                  | Opcional; el valor por defecto es `/api`. Mantén ese valor para este despliegue                            |
 | `GOOGLE_BOOKS_API_KEY`          | Opcional; habilita Google Books como proveedor adicional                                                   |
 
-Las variables `VITE_` se incorporan al JavaScript durante la compilación. No pongas claves de servidor en ellas. El archivo `.env` y `frontend/.env.local` son locales y no sustituyen la configuración del proyecto en Vercel. No configures `VERCEL` manualmente: lo proporciona Vercel. `API_PROXY_TARGET` es únicamente para el desarrollo independiente con Vite.
+Las variables `VITE_` se incorporan al JavaScript durante la compilación. No pongas claves de servidor en ellas. La configuración local compartida está en `.env` de la raíz; Vite también lo carga mediante `envDir`. Estos archivos son locales y no sustituyen la configuración del proyecto en Vercel. No configures `VERCEL` manualmente: lo proporciona Vercel. `API_PROXY_TARGET` es únicamente para el desarrollo independiente con Vite.
 
 Configura el dominio final en Supabase → Authentication → URL Configuration (Site URL y Redirect URLs). Para probar altas desde previews, autoriza también las URLs de preview correspondientes. Aplica previamente las [migraciones y permisos de Supabase](src/auth/README.md).
 
@@ -76,3 +74,5 @@ npm --prefix frontend test
 Para publicar, importa el repositorio en Vercel con Root Directory `.` y las variables anteriores. Los comandos de instalación y compilación se declaran por servicio. Confirma previamente los nombres `app`/`frontend`, las rutas públicas y la decisión de no añadir un proxy interno.
 
 Referencias oficiales: [Services](https://vercel.com/docs/services), [routing](https://vercel.com/docs/services/routing), [bindings](https://vercel.com/docs/services/bindings), [NestJS](https://vercel.com/docs/frameworks/backend/nestjs).
+
+La URL y la clave pública usan los mismos nombres `VITE_` en frontend y backend. No se admiten los antiguos nombres `SUPABASE_URL`, `SUPABASE_AUTH_KEY` ni `SUPABASE_KEY`. La clave privada se mantiene exclusivamente en `SUPABASE_SERVICE_ROLE_KEY`, sin prefijo `VITE_`. En local, ambos servicios leen `.env` en la raíz.

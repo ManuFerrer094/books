@@ -9,10 +9,8 @@ export const supabaseProvider = {
   inject: [ConfigService],
 
   useFactory: (configService: ConfigService) => {
-    const supabaseUrl = configService.getOrThrow<string>('SUPABASE_URL');
-    const supabaseKey =
-      configService.get<string>('SUPABASE_SERVICE_ROLE_KEY') ??
-      configService.getOrThrow<string>('SUPABASE_KEY');
+    const supabaseUrl = configService.getOrThrow<string>('VITE_SUPABASE_URL');
+    const supabaseKey = configService.getOrThrow<string>('SUPABASE_SERVICE_ROLE_KEY');
 
     return createClient(supabaseUrl, supabaseKey, {
       auth: {
