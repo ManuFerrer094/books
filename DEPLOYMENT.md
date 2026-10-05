@@ -1,5 +1,11 @@
 # Desplegar en Vercel Services
 
+## Versión de Node.js
+
+El backend fija Node.js `24.x` en `package.json`. NestJS 12 publica módulos ESM y la compilación actual genera CommonJS (`require()`); Node.js 24 admite cargar estas dependencias desde CommonJS. Un runtime sin ese soporte falla al arrancar con `ERR_REQUIRE_ESM`.
+
+Utiliza también Node.js 24 en desarrollo. En Vercel, comprueba **Settings → Build and Deployment → Node.js Version** y selecciona **24.x**. El campo `engines.node` del backend fija esta versión para los nuevos despliegues. Después de subir el cambio, crea un nuevo despliegue: el cambio no modifica las funciones de despliegues anteriores.
+
 Este repositorio se configura como **un proyecto** con dos servicios definidos en [`vercel.json`](vercel.json). Selecciona la raíz del repositorio como Root Directory al importar el proyecto.
 
 | Servicio   | Raíz       | Framework    | Rutas públicas                                |
