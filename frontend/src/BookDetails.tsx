@@ -12,12 +12,14 @@ export default function BookDetails({
   onClose,
   onUpdated,
   onRemoved,
+  focusRating = false,
 }: {
   ownerId: string;
   entry: LibraryBook;
   onClose: () => void;
   onUpdated: (entry: LibraryBook) => void;
   onRemoved: (id: number) => void;
+  focusRating?: boolean;
 }) {
   const [busy, setBusy] = useState(false);
   const [confirm, setConfirm] = useState(false);
@@ -116,6 +118,7 @@ export default function BookDetails({
           disabled={busy}
           onUpdated={onUpdated}
           onBusy={setBusy}
+          focusRating={focusRating}
         />
       </div>
       {editingMetadata ? (

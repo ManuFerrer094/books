@@ -12,6 +12,11 @@ import { LibraryService } from '../library/library.service.js';
 import { BooksController } from '../books/books.controller.js';
 import { BooksService } from '../books/books.service.js';
 import { IsbnLookupService } from '../books/isbn-lookup.service.js';
+import {
+  CatalogController,
+  WishlistController,
+} from '../library/wishlist.controller.js';
+import { WishlistService } from '../library/wishlist.service.js';
 
 describe('Authenticated HTTP routes', () => {
   let app: INestApplication;
@@ -43,6 +48,12 @@ describe('Authenticated HTTP routes', () => {
     deleteBook: jest.fn<any>(),
   };
   const lookup = { lookup: jest.fn<any>() };
+  const wishlist = {
+    list: jest.fn<any>(),
+    add: jest.fn<any>(),
+    remove: jest.fn<any>(),
+    catalog: jest.fn<any>(),
+  };
   beforeEach(async () => {
     jest.resetAllMocks();
     auth.verify.mockImplementation(async (token) => {
@@ -57,12 +68,21 @@ describe('Authenticated HTTP routes', () => {
     });
     library.list.mockResolvedValue([]);
     books.getBooks.mockResolvedValue([]);
+    wishlist.list.mockResolvedValue([]);
+    wishlist.catalog.mockResolvedValue({
+      books: [],
+      total: 0,
+      page: 1,
+      page_size: 24,
+    });
     const module = await Test.createTestingModule({
       controllers: [
         AuthController,
         LibraryController,
         BooksController,
         BookshelfController,
+        CatalogController,
+        WishlistController,
       ],
       providers: [
         AuthGuard,
@@ -71,6 +91,7 @@ describe('Authenticated HTTP routes', () => {
         { provide: LibraryService, useValue: library },
         { provide: BooksService, useValue: books },
         { provide: IsbnLookupService, useValue: lookup },
+        { provide: WishlistService, useValue: wishlist },
       ],
     }).compile();
     app = module.createNestApplication();
@@ -82,6 +103,8 @@ describe('Authenticated HTTP routes', () => {
   it.each([
     '/me/books',
     '/me/bookshelf',
+    '/catalog',
+    '/me/wishlist',
     '/auth/me',
     '/books',
     '/books/isbn/9780140328721',
@@ -112,6 +135,97 @@ describe('Authenticated HTTP routes', () => {
         accessToken: 'valid-a',
       }),
     );
+  });
+  it('browses the catalogue with validated defaults and private caching disabled', async () => {
+    await request(app.getHttpServer())
+      .get('/catalog')
+      .set('Authorization', 'Bearer valid-a')
+      .expect(200)
+      .expect('Cache-Control', 'no-store');
+    expect(wishlist.catalog).toHaveBeenCalledWith(
+      expect.objectContaining({ accessToken: 'valid-a' }),
+      expect.objectContaining({ query: '', page: 1, page_size: 24 }),
+    );
+    await request(app.getHttpServer())
+      .get('/catalog?query=autor&page=2&page_size=10')
+      .set('Authorization', 'Bearer valid-a')
+      .expect(200);
+    expect(wishlist.catalog).toHaveBeenLastCalledWith(
+      expect.anything(),
+      expect.objectContaining({ query: 'autor', page: 2, page_size: 10 }),
+    );
+  });
+  it.each([
+    'page=0',
+    'page=-1',
+    'page=1.5',
+    'page=oops',
+    'page_size=101',
+    'page_size=0',
+    'user_id=victim',
+    `query=${'a'.repeat(201)}`,
+  ])('rejects invalid catalogue query %s', async (query) => {
+    await request(app.getHttpServer())
+      .get(`/catalog?${query}`)
+      .set('Authorization', 'Bearer valid-a')
+      .expect(400);
+    expect(wishlist.catalog).not.toHaveBeenCalled();
+  });
+  it('uses verified ownership for all wishlist operations', async () => {
+    wishlist.add.mockResolvedValue({ book_id: 7 });
+    await request(app.getHttpServer())
+      .get('/me/wishlist')
+      .set('Authorization', 'Bearer valid-a')
+      .expect(200)
+      .expect('Cache-Control', 'no-store')
+      .expect([]);
+    await request(app.getHttpServer())
+      .post('/me/wishlist')
+      .set('Authorization', 'Bearer valid-a')
+      .send({ book_id: 7 })
+      .expect(200)
+      .expect('Cache-Control', 'no-store')
+      .expect({ book_id: 7 });
+    await request(app.getHttpServer())
+      .delete('/me/wishlist/7')
+      .set('Authorization', 'Bearer valid-a')
+      .expect(204);
+    const verified = expect.objectContaining({
+      user: expect.objectContaining({ id: 'user-a' }),
+      accessToken: 'valid-a',
+    });
+    expect(wishlist.list).toHaveBeenCalledWith(verified);
+    expect(wishlist.add).toHaveBeenCalledWith(verified, 7);
+    expect(wishlist.remove).toHaveBeenCalledWith(verified, 7);
+    expect(library.add).not.toHaveBeenCalled();
+  }, 15000);
+  it.each([
+    { book_id: 7, user_id: 'victim' },
+    { book_id: 0 },
+    { book_id: null },
+    { book_id: '7' },
+    { book_id: 1.5 },
+    { book_id: 7, rating: 5 },
+  ])('rejects invalid or forged wishlist data %j', async (body) => {
+    await request(app.getHttpServer())
+      .post('/me/wishlist')
+      .set('Authorization', 'Bearer valid-a')
+      .send(body)
+      .expect(400);
+    expect(wishlist.add).not.toHaveBeenCalled();
+  });
+  it('requires authentication on wishlist writes and validates delete identifiers', async () => {
+    await request(app.getHttpServer())
+      .post('/me/wishlist')
+      .send({ book_id: 7 })
+      .expect(401);
+    await request(app.getHttpServer()).delete('/me/wishlist/7').expect(401);
+    await request(app.getHttpServer())
+      .delete('/me/wishlist/not-a-book')
+      .set('Authorization', 'Bearer valid-a')
+      .expect(400);
+    expect(wishlist.add).not.toHaveBeenCalled();
+    expect(wishlist.remove).not.toHaveBeenCalled();
   });
   it.each([
     { book_id: 1, user_id: 'victim' },

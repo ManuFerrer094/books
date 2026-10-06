@@ -39,6 +39,37 @@ const books: LibraryBook[] = [
   },
 ];
 describe('organización de la biblioteca', () => {
+  it('ordena por estrellas en ambos sentidos, dejando sin valorar al final y conservando el cero', () => {
+    const rated = [
+      { ...books[0], book_id: 1, rating: null },
+      { ...books[1], book_id: 2, rating: 0 },
+      { ...books[0], book_id: 3, rating: 5 },
+      { ...books[1], book_id: 4, rating: 3 },
+      { ...books[1], book_id: 5 },
+    ];
+    expect(
+      visibleBooks(rated, 'all', '', 'rating-desc').map((book) => book.book_id),
+    ).toEqual([3, 4, 2, 1, 5]);
+    expect(
+      visibleBooks(rated, 'all', '', 'rating-asc').map((book) => book.book_id),
+    ).toEqual([2, 4, 3, 1, 5]);
+    expect(
+      visibleBooks(rated, 'reading', '', 'rating-desc').map(
+        (book) => book.book_id,
+      ),
+    ).toEqual([4, 2, 5]);
+    expect(rated.map((book) => book.book_id)).toEqual([1, 2, 3, 4, 5]);
+  });
+  it('desempata valoraciones por título y después por identificador', () => {
+    const tied = [
+      { ...books[1], book_id: 4, rating: 5 },
+      { ...books[0], book_id: 3, rating: 5 },
+      { ...books[0], book_id: 1, rating: 5 },
+    ];
+    expect(
+      visibleBooks(tied, 'all', '', 'rating-desc').map((book) => book.book_id),
+    ).toEqual([1, 3, 4]);
+  });
   it('filtra préstamos sin perder el estado de lectura', () => {
     const lent = [{ ...books[0], is_lent: true, lent_to: 'Ana' }, books[1]];
     expect(

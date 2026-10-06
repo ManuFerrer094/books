@@ -27,6 +27,14 @@ Las claves de servidor y las contraseñas no deben compartirse ni enviarse al fr
 La clave publishable/anon sí es pública; las políticas RLS protegen los datos.
 No se añaden proveedores de pago ni dependencias de autenticación externas a Supabase.
 
+## Catálogo y lista de deseos
+
+Aplica la [migración 007](../books/database/migrations/007_wishlist_catalog.sql) después de 001–006. `GET /catalog?query=&page=1&page_size=24` devuelve `{ books, total, page, page_size }`, con búsqueda por título, autor o ISBN. Requiere sesión y usa el token del lector mediante `browse_catalog`, con `SECURITY INVOKER`. Devuelve solo fichas compartidas; nunca consulta bibliotecas, propietarios ni campos privados. La búsqueda ignora mayúsculas y los acentos habituales en español. La paginación evita truncar el catálogo por el límite de filas de Supabase.
+
+`GET /me/wishlist` lista todos los deseos propios. `POST /me/wishlist` recibe `{ "book_id": 7 }` y guarda idempotentemente el deseo, conservando su fecha original. `DELETE /me/wishlist/7` lo quita (204 incluso si ya no existe). La identidad procede del token; no se acepta `user_id` en el body. RLS permite leer, insertar y borrar solo deseos propios. Estas operaciones no modifican `user_books` ni implican poseer el libro.
+
+La [prueba SQL](../../test/database/wishlist-catalog.sql) verifica aislamiento entre dos lectores, permisos y búsqueda/paginación en una base de pruebas; revierte los datos al terminar.
+
 ## Préstamos, anotaciones y valoración
 
 Aplica la [migración 006](../books/database/migrations/006_book_personal_details.sql) después de 001–005 y antes de desplegar. Los datos se guardan por propietario en `user_books`; las políticas RLS existentes protegen destinatarios, notas y estrellas. Restaurar los metadatos del catálogo conserva estos datos.

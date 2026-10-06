@@ -1,4 +1,4 @@
-import { useId, useState, type FormEvent } from 'react';
+import { useEffect, useId, useRef, useState, type FormEvent } from 'react';
 import { Handshake, Star } from 'lucide-react';
 import { api, errorMessage } from './api';
 import { Feedback } from './components';
@@ -10,14 +10,28 @@ export default function BookPersonalDetails({
   disabled,
   onUpdated,
   onBusy,
+  focusRating = false,
 }: {
   ownerId: string;
   entry: LibraryBook;
   disabled: boolean;
   onUpdated: (entry: LibraryBook) => void;
   onBusy: (busy: boolean) => void;
+  focusRating?: boolean;
 }) {
   const id = useId();
+  const ratingRef = useRef<HTMLFieldSetElement>(null);
+  useEffect(() => {
+    if (!focusRating) return;
+    const frame = window.requestAnimationFrame(() => {
+      const input =
+        ratingRef.current?.querySelector<HTMLInputElement>('input:checked') ??
+        ratingRef.current?.querySelector<HTMLInputElement>('input');
+      ratingRef.current?.scrollIntoView({ block: 'center' });
+      input?.focus({ preventScroll: true });
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [focusRating]);
   const [isLent, setIsLent] = useState(entry.is_lent ?? false);
   const [lentTo, setLentTo] = useState(entry.lent_to ?? '');
   const [notes, setNotes] = useState(entry.notes ?? '');
@@ -111,7 +125,7 @@ export default function BookPersonalDetails({
           />
         </label>
       )}
-      <fieldset className="personal-rating" disabled={disabled}>
+      <fieldset ref={ratingRef} className="personal-rating" disabled={disabled}>
         <legend>Tu valoración</legend>
         <div className="rating-options">
           {[0, 1, 2, 3, 4, 5].map((value) => (

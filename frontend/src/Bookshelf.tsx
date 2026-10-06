@@ -21,6 +21,7 @@ interface Props {
   onSelect: (id: number) => void;
   onAdd: () => void;
   onReload: () => void;
+  preserveVisibleOrder?: boolean;
 }
 interface Drag {
   id: number;
@@ -39,6 +40,7 @@ export default function Bookshelf({
   onSelect,
   onAdd,
   onReload,
+  preserveVisibleOrder = false,
 }: Props) {
   const container = useRef<HTMLDivElement>(null);
   const alive = useRef(false);
@@ -117,7 +119,9 @@ export default function Bookshelf({
       focusRef.current = null;
     }
   }, [saving, layout]);
-  const ordered = orderedBooks(books, draft ?? layout?.book_ids ?? []);
+  const ordered = preserveVisibleOrder
+    ? books
+    : orderedBooks(books, draft ?? layout?.book_ids ?? []);
   const fullOrder = orderedBooks(allBooks, draft ?? layout?.book_ids ?? []).map(
     (book) => book.book_id,
   );
