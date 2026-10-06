@@ -16,7 +16,8 @@ export function visibleBooks(
   return books
     .filter(
       (entry) =>
-        (shelf === 'all' || entry.status === shelf) &&
+        (shelf === 'all' ||
+          (shelf === 'lent' ? entry.is_lent : entry.status === shelf)) &&
         searchText(
           `${entry.book.title} ${entry.book.authors?.map((author) => author.name).join(' ') || ''} ${entry.book.isbn || ''}`,
         ).includes(term),

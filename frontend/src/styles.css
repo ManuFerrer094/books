@@ -1771,6 +1771,132 @@ h3 {
   margin-top: 26px;
   padding-top: 17px;
 }
+.personal-details {
+  border-top: 1px solid var(--line);
+  margin-top: 24px;
+  padding-top: 24px;
+}
+.personal-details h4 {
+  font: 500 19px/1.5 var(--serif);
+  margin: 0 0 6px;
+}
+.personal-details > .muted {
+  font-size: 12px;
+  line-height: 1.7;
+  margin-bottom: 20px;
+}
+.loan-toggle {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 44px;
+  margin-bottom: 12px;
+  font-size: 13px;
+  color: var(--green);
+}
+.loan-toggle input {
+  width: 18px;
+  height: 18px;
+  accent-color: var(--green);
+}
+.personal-rating {
+  border: 0;
+  margin: 18px 0;
+  padding: 0;
+  min-width: 0;
+}
+.personal-rating legend {
+  font-size: 12px;
+  font-weight: 550;
+  margin-bottom: 8px;
+}
+.rating-options {
+  display: flex;
+  gap: 4px;
+}
+.rating-option {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  color: #8b8d7e;
+  cursor: pointer;
+  position: relative;
+}
+.rating-option.filled {
+  color: #9a752d;
+}
+.rating-input {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  opacity: 0;
+  cursor: inherit;
+}
+.rating-option > svg,
+.rating-option > span {
+  pointer-events: none;
+}
+.rating-option:has(input:checked) {
+  background: #f3edda;
+  border-color: #dacc9f;
+}
+.rating-option:has(input:focus-visible) {
+  outline: 2px solid var(--green);
+  outline-offset: 2px;
+}
+.personal-rating:disabled .rating-option {
+  cursor: default;
+  opacity: 0.6;
+}
+.rating-caption {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  min-height: 35px;
+  font-size: 12px;
+  color: var(--muted);
+}
+.field textarea {
+  display: block;
+  width: 100%;
+  min-height: 120px;
+  margin-top: 7px;
+  padding: 12px 13px;
+  border: 1px solid #dfe2d7;
+  border-radius: 7px;
+  background: #fffefa;
+  color: #363c32;
+  font:
+    400 13px/1.7 'DM Sans',
+    sans-serif;
+  resize: vertical;
+}
+.loan-badge,
+.card-rating {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  margin-top: 8px;
+  font-size: 11px;
+  line-height: 1.6;
+  overflow-wrap: anywhere;
+}
+.loan-badge {
+  color: var(--green);
+}
+.loan-badge svg {
+  flex-shrink: 0;
+}
+.card-rating {
+  color: #9a752d;
+  letter-spacing: 2px;
+}
 .remove {
   color: #9b8071;
   font-size: 11px;

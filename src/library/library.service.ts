@@ -22,7 +22,7 @@ import { PersonalBookMetadataDto } from './book-metadata.dto.js';
 import { CoverDto } from './cover.dto.js';
 
 const LIBRARY_SELECT =
-  'book_id, status, added_at, updated_at, metadata, cover_image_path, spine_color, spine_width, spine_height, spine_image_path, books(*, book_authors(authors(id, name)))';
+  'book_id, status, is_lent, lent_to, notes, rating, added_at, updated_at, metadata, cover_image_path, spine_color, spine_width, spine_height, spine_image_path, books(*, book_authors(authors(id, name)))';
 type Identity = Pick<AuthRequest, 'user' | 'accessToken'>;
 
 function libraryBook(row: any) {
@@ -135,10 +135,31 @@ export class LibraryService {
     bookId: number,
     input: UpdateLibraryBookDto,
   ) {
+    const fields: Record<string, unknown> = {};
+    for (const key of [
+      'status',
+      'is_lent',
+      'lent_to',
+      'notes',
+      'rating',
+    ] as const) {
+      if (input[key] !== undefined) fields[key] = input[key];
+    }
+    if (!Object.keys(fields).length)
+      throw new BadRequestException('Provide at least one library field');
+    if (input.lent_to !== undefined)
+      fields.lent_to = input.lent_to?.trim() || null;
+    if (input.is_lent === false) {
+      if (fields.lent_to)
+        throw new BadRequestException('A returned book cannot have a borrower');
+      fields.lent_to = null;
+    }
+    if (input.notes !== undefined) fields.notes = input.notes?.trim() || null;
+    fields.updated_at = new Date().toISOString();
     const { data, error } = await this.clients
       .create(identity.accessToken)
       .from('user_books')
-      .update({ status: input.status, updated_at: new Date().toISOString() })
+      .update(fields)
       .eq('user_id', identity.user.id)
       .eq('book_id', bookId)
       .select(LIBRARY_SELECT)

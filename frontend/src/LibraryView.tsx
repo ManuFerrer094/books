@@ -11,6 +11,7 @@ import {
   Bookmark,
   Check,
   RefreshCw,
+  Handshake,
 } from 'lucide-react';
 import { Brand, Cover } from './components';
 import { shelves, type LibraryBook } from './types';
@@ -34,6 +35,7 @@ const shelfIcons = {
   pending: Bookmark,
   reading: BookOpen,
   read: Check,
+  lent: Handshake,
 };
 export default function LibraryView({
   ownerId,
@@ -100,7 +102,11 @@ export default function LibraryView({
                 const count =
                   item.id === 'all'
                     ? books.length
-                    : books.filter((entry) => entry.status === item.id).length;
+                    : books.filter((entry) =>
+                        item.id === 'lent'
+                          ? entry.is_lent
+                          : entry.status === item.id,
+                      ).length;
                 return (
                   <button
                     key={item.id}
@@ -246,6 +252,25 @@ export default function LibraryView({
                         ?.map((author) => author.name)
                         .join(', ') || 'Autor sin indicar'}
                     </p>
+                    {entry.is_lent && (
+                      <span className="loan-badge">
+                        <Handshake size={13} />
+                        {entry.lent_to
+                          ? `Prestado a ${entry.lent_to}`
+                          : 'Prestado'}
+                      </span>
+                    )}
+                    {entry.rating != null && (
+                      <span
+                        className="card-rating"
+                        aria-label={`Valoración personal: ${entry.rating} de 5 estrellas`}
+                      >
+                        <span aria-hidden="true">
+                          {'★'.repeat(entry.rating)}
+                          {'☆'.repeat(5 - entry.rating)}
+                        </span>
+                      </span>
+                    )}
                   </button>
                 ))}
               </div>

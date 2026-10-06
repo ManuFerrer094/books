@@ -39,6 +39,19 @@ const books: LibraryBook[] = [
   },
 ];
 describe('organización de la biblioteca', () => {
+  it('filtra préstamos sin perder el estado de lectura', () => {
+    const lent = [{ ...books[0], is_lent: true, lent_to: 'Ana' }, books[1]];
+    expect(
+      visibleBooks(lent, 'lent', '', 'recent').map((b) => b.book_id),
+    ).toEqual([1]);
+    expect(
+      visibleBooks(lent, 'pending', '', 'recent').map((b) => b.book_id),
+    ).toEqual([1]);
+    expect(
+      visibleBooks(lent, 'reading', '', 'recent').map((b) => b.book_id),
+    ).toEqual([2]);
+    expect(visibleBooks(lent, 'lent', 'bosque', 'recent')).toEqual([]);
+  });
   it('busca títulos y autores sin distinguir acentos ni mayúsculas', () => {
     expect(
       visibleBooks(books, 'all', '  ARBOLES ', 'recent').map((b) => b.book_id),

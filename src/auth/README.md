@@ -27,6 +27,16 @@ Las claves de servidor y las contraseñas no deben compartirse ni enviarse al fr
 La clave publishable/anon sí es pública; las políticas RLS protegen los datos.
 No se añaden proveedores de pago ni dependencias de autenticación externas a Supabase.
 
+## Préstamos, anotaciones y valoración
+
+Aplica la [migración 006](../books/database/migrations/006_book_personal_details.sql) después de 001–005 y antes de desplegar. Los datos se guardan por propietario en `user_books`; las políticas RLS existentes protegen destinatarios, notas y estrellas. Restaurar los metadatos del catálogo conserva estos datos.
+
+En la ficha, marca **Libro prestado** y, si quieres, indica **Prestado a** (hasta 200 caracteres). El préstamo es independiente de Por leer/Leyendo/Leído. El estante **Prestados** filtra los libros prestados. Para registrar la devolución, desmarca el préstamo y guarda: se borra el destinatario, manteniendo la lectura, las notas y las estrellas.
+
+**Mis anotaciones** admite hasta 10.000 caracteres. La valoración permite estrellas enteras de **0 a 5**; **Sin valorar** se guarda como `null`, distinto de 0. **Guardar datos personales** guarda los cambios; **Descartar cambios** recupera los valores guardados. Si falla la conexión, se conserva el borrador para reintentar.
+
+`PATCH /me/books/:bookId` acepta uno o más campos: `status`, `is_lent`, `lent_to`, `notes`, `rating`. Los campos omitidos se conservan; `notes`, `lent_to` y `rating` aceptan `null` para borrarlos. Ejemplo: `{ "is_lent": true, "lent_to": "Ana", "notes": "Mi frase favorita", "rating": 4 }`. `is_lent: false` limpia el destinatario. La identidad se obtiene del token, nunca del body.
+
 ## Estantería y fotos de los lomos
 
 Antes de desplegar la nueva interfaz y API, ejecuta una vez `src/books/database/migrations/003_bookshelf.sql`, después de 001 y 002, como administrador en el SQL Editor de Supabase. Conserva las relaciones existentes y añade campos opcionales de apariencia a `user_books`, la tabla `user_bookshelf` y la función transaccional `save_bookshelf_order`. La migración también crea el bucket privado `book-spines`, limita las subidas a JPEG de hasta 5 MB y permite leer, subir y borrar únicamente archivos en la carpeta del propietario. El navegador convierte las fotos PNG/WebP a JPEG antes de subirlas. No crees un bucket público ni añadas permisos de sobrescritura.

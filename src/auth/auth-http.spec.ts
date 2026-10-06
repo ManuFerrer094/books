@@ -139,12 +139,58 @@ describe('Authenticated HTTP routes', () => {
       expect.objectContaining({ isbn: '9780140328721', status: 'pending' }),
     );
   });
-  it('requires a status for library updates', async () => {
+  it('requires at least one field for library updates', async () => {
     await request(app.getHttpServer())
       .patch('/me/books/1')
       .set('Authorization', 'Bearer valid-a')
       .send({})
       .expect(400);
+  });
+  it.each([
+    { is_lent: true, lent_to: 'Ana', notes: 'Mis ideas', rating: 5 },
+    { rating: 0 },
+    { rating: null, notes: null, lent_to: null },
+    { is_lent: false },
+    { status: 'read' },
+  ])(
+    'accepts personal details without requiring a reading status %j',
+    async (body) => {
+      await request(app.getHttpServer())
+        .patch('/me/books/1')
+        .set('Authorization', 'Bearer valid-a')
+        .send(body)
+        .expect(200);
+      expect(library.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          user: expect.objectContaining({ id: 'user-a' }),
+          accessToken: 'valid-a',
+        }),
+        1,
+        expect.objectContaining(body),
+      );
+      expect(books.updateBook).not.toHaveBeenCalled();
+    },
+  );
+  it.each([
+    { rating: -1 },
+    { rating: 6 },
+    { rating: 2.5 },
+    { rating: '5' },
+    { notes: 123 },
+    { notes: 'a'.repeat(10001) },
+    { lent_to: 'a'.repeat(201) },
+    { lent_to: {} },
+    { is_lent: null },
+    { is_lent: 'true' },
+    { status: null },
+    { user_id: 'victim', notes: 'Forged' },
+  ])('rejects invalid personal details %#', async (body) => {
+    await request(app.getHttpServer())
+      .patch('/me/books/1')
+      .set('Authorization', 'Bearer valid-a')
+      .send(body)
+      .expect(400);
+    expect(library.update).not.toHaveBeenCalled();
   });
   it('allows private cover association and restoration only with authentication', async () => {
     for (const image_path of [

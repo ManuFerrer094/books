@@ -4,6 +4,7 @@ import { api, errorMessage } from './api';
 import { Cover, Dialog, Feedback, StatusSelect } from './components';
 import type { LibraryBook, ReadingStatus } from './types';
 import BookMetadataEditor from './BookMetadataEditor';
+import BookPersonalDetails from './BookPersonalDetails';
 
 export default function BookDetails({
   ownerId,
@@ -107,6 +108,16 @@ export default function BookDetails({
           </div>
         </div>
       )}
+      <div hidden={editingMetadata}>
+        <BookPersonalDetails
+          key={entry.book_id}
+          ownerId={ownerId}
+          entry={entry}
+          disabled={busy}
+          onUpdated={onUpdated}
+          onBusy={setBusy}
+        />
+      </div>
       {editingMetadata ? (
         <BookMetadataEditor
           key={entry.book_id}
