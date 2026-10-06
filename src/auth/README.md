@@ -27,6 +27,12 @@ Las claves de servidor y las contraseñas no deben compartirse ni enviarse al fr
 La clave publishable/anon sí es pública; las políticas RLS protegen los datos.
 No se añaden proveedores de pago ni dependencias de autenticación externas a Supabase.
 
+## Opciones de cuenta
+
+La interfaz solicita la recuperación mediante `resetPasswordForEmail`, con destino `/recuperar-contrasena`. Autoriza esta ruta en las Redirect URLs de Supabase y conserva `{{ .ConfirmationURL }}` en **Reset Password**. El cambio de contraseña usa `updateUser`; desde Mi cuenta incluye `current_password`, mientras que el enlace de recuperación permite elegir una contraseña sin conocer la olvidada. La biblioteca solo se muestra tras completar la recuperación. Consulta [DEPLOYMENT.md](../../DEPLOYMENT.md#recuperación-de-contraseña-y-cuenta).
+
+`GET /me/account/export` devuelve un JSON de los datos del lector verificado con `Cache-Control: no-store`. `DELETE /me/account` recibe `{ "password": "contraseña actual", "confirmation": "ELIMINAR" }`, verifica las credenciales y borra las fotos de ambos buckets privados antes de eliminar al usuario de Auth. Requiere el cliente de servidor ya configurado; no recibe `user_id` ni utiliza el rol administrador del usuario. Cada lector puede eliminar solo su propia cuenta. Las relaciones personales se eliminan en cascada y el catálogo compartido permanece.
+
 ## Catálogo y lista de deseos
 
 Aplica la [migración 007](../books/database/migrations/007_wishlist_catalog.sql) después de 001–006. `GET /catalog?query=&page=1&page_size=24` devuelve `{ books, total, page, page_size }`, con búsqueda por título, autor o ISBN. Requiere sesión y usa el token del lector mediante `browse_catalog`, con `SECURITY INVOKER`. Devuelve solo fichas compartidas; nunca consulta bibliotecas, propietarios ni campos privados. La búsqueda ignora mayúsculas y los acentos habituales en español. La paginación evita truncar el catálogo por el límite de filas de Supabase.

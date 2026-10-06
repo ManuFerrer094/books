@@ -89,6 +89,18 @@ También se mantiene el desarrollo independiente habitual: `npm run start:dev` e
 
 ## Compilación y pruebas
 
+### Recuperación de contraseña y cuenta
+
+En Supabase → **Authentication → URL Configuration → Redirect URLs**, añade **`https://books-chi-amber.vercel.app/recuperar-contrasena`**, conservando la URL de registro actual. En desarrollo añade `http://localhost:5173/recuperar-contrasena` (o el origen de `vercel dev`); autoriza también la ruta en las previews utilizadas. `VITE_SITE_URL`, si existe, debe seguir apuntando al frontend. La plantilla **Reset Password** debe enlazar a `{{ .ConfirmationURL }}`. Consulta el [flujo oficial de recuperación](https://supabase.com/docs/guides/auth/passwords).
+
+La página de acceso permite solicitar un enlace sin revelar si la cuenta existe. El enlace válido abre el formulario de nueva contraseña, retira los tokens de la URL y vuelve a la biblioteca al guardar. Los enlaces caducados permiten solicitar otro. Durante la recuperación, una recarga en la misma pestaña conserva el formulario; una visita sin enlace válido permite pedir uno nuevo.
+
+**Mi cuenta**, en la cabecera, permite cambiar la contraseña indicando la actual, descargar los datos propios como JSON y eliminar la cuenta. La exportación recorre las filas por páginas e incluye libros, notas, estrellas, préstamos, deseos y orden. No contiene credenciales ni el contenido de las fotos.
+
+`DELETE /api/me/account` exige sesión, contraseña actual y `confirmation: "ELIMINAR"`. El backend verifica de nuevo las credenciales en un cliente aislado. Enumera los archivos del usuario en `book-spines` y `book-covers`, incluidos restos de subidas, los borra mediante Storage y después elimina al usuario de Auth. Las claves foráneas existentes borran biblioteca, deseos y orden; las fichas y autores compartidos permanecen. No se admite una identidad del body ni se expone la clave administrativa al navegador.
+
+No necesita nuevas migraciones ni variables respecto a 001–007. Storage y Auth no comparten una transacción: si falla la eliminación después de borrar fotos, la cuenta puede conservarse con parte de las fotos ya borradas; la interfaz informa de ello y permite reintentar. La [prueba SQL de eliminación](test/database/account-deletion.sql) verifica el borrado en cascada y la conservación de los datos del segundo lector; ejecútala en una base de pruebas y sus datos se revierten al terminar.
+
 Para el catálogo y la lista de deseos, aplica **antes de desplegar API y frontend** la [migración 007](src/books/database/migrations/007_wishlist_catalog.sql), después de 001–006. Crea `user_wishlist` con acceso privado por usuario y `browse_catalog` con búsqueda y paginación. El catálogo devuelve únicamente fichas y autores compartidos; no une bibliotecas, préstamos, anotaciones, valoraciones ni fotos personales. Guardar o quitar deseos no modifica `user_books`. No requiere nuevas variables.
 
 La [prueba SQL de catálogo y deseos](test/database/wishlist-catalog.sql) comprueba privacidad entre dos lectores, permisos anónimos, duplicados, búsqueda, paginación y eliminación independiente. Ejecútala en una base de pruebas con las migraciones aplicadas: `psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f test/database/wishlist-catalog.sql`. Sus datos se revierten al terminar.

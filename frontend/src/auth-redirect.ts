@@ -32,6 +32,18 @@ export function emailRedirectUrl() {
     .href;
 }
 
+export function passwordRecoveryUrl() {
+  return new URL('/recuperar-contrasena', emailRedirectUrl()).href;
+}
+
+export function isRecoveryCallback() {
+  const url = new URL(window.location.href);
+  return (
+    (new URLSearchParams(url.hash.slice(1)).get('type') ||
+      url.searchParams.get('type')) === 'recovery'
+  );
+}
+
 export async function initializeAuthRedirect(client: SupabaseClient) {
   const url = new URL(window.location.href);
   const hash = new URLSearchParams(url.hash.slice(1));
@@ -40,6 +52,8 @@ export async function initializeAuthRedirect(client: SupabaseClient) {
   );
   const hashCallback = callbackParameters.some((key) => hash.has(key));
   const isCallback = queryCallback || hashCallback;
+  const recovery =
+    url.pathname === '/recuperar-contrasena' || isRecoveryCallback();
   const expired =
     (hash.get('error_code') || url.searchParams.get('error_code')) ===
     'otp_expired';
@@ -49,7 +63,11 @@ export async function initializeAuthRedirect(client: SupabaseClient) {
     const { error } = await client.auth.initialize();
     if (error) {
       if (expired)
-        return 'El enlace de confirmación ha caducado o ya se ha utilizado. Prueba a entrar o solicita un nuevo correo.';
+        return recovery
+          ? 'El enlace para recuperar tu contraseña ha caducado o ya se ha utilizado. Solicita uno nuevo.'
+          : 'El enlace de confirmación ha caducado o ya se ha utilizado. Prueba a entrar o solicita un nuevo correo.';
+      if (recovery)
+        return 'No hemos podido validar este enlace de recuperación. Solicita uno nuevo.';
       return isCallback
         ? 'No hemos podido confirmar tu cuenta con este enlace. Prueba a entrar o solicita un nuevo correo.'
         : 'No hemos podido recuperar tu sesión. Inténtalo de nuevo.';

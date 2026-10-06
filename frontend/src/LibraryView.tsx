@@ -14,6 +14,7 @@ import {
   Handshake,
   Heart,
   Globe2,
+  Settings,
 } from 'lucide-react';
 import { Brand } from './components';
 import { shelves, type LibraryBook, type WishlistBook } from './types';
@@ -40,6 +41,7 @@ interface Props {
   onAddedWish: (entry: WishlistBook) => void;
   onRemovedWish: (id: number) => void;
   onRate: (id: number) => void;
+  onAccount: () => void;
 }
 const shelfIcons = {
   all: Library,
@@ -67,6 +69,7 @@ export default function LibraryView({
   onAddedWish,
   onRemovedWish,
   onRate,
+  onAccount,
 }: Props) {
   const [shelf, setShelf] = useState<string>('all');
   const [query, setQuery] = useState('');
@@ -87,6 +90,15 @@ export default function LibraryView({
           <span className="user-email" title={email}>
             {email}
           </span>
+          <button
+            className="icon-button"
+            aria-label="Mi cuenta"
+            title="Mi cuenta"
+            onClick={onAccount}
+            disabled={signingOut}
+          >
+            <Settings size={19} strokeWidth={1.5} />
+          </button>
           <button
             className="icon-button"
             aria-label="Cerrar sesión"

@@ -17,6 +17,8 @@ import {
   WishlistController,
 } from '../library/wishlist.controller.js';
 import { WishlistService } from '../library/wishlist.service.js';
+import { AccountController } from '../account/account.controller.js';
+import { AccountService } from '../account/account.service.js';
 
 describe('Authenticated HTTP routes', () => {
   let app: INestApplication;
@@ -48,6 +50,7 @@ describe('Authenticated HTTP routes', () => {
     deleteBook: jest.fn<any>(),
   };
   const lookup = { lookup: jest.fn<any>() };
+  const account = { export: jest.fn<any>(), remove: jest.fn<any>() };
   const wishlist = {
     list: jest.fn<any>(),
     add: jest.fn<any>(),
@@ -83,6 +86,7 @@ describe('Authenticated HTTP routes', () => {
         BookshelfController,
         CatalogController,
         WishlistController,
+        AccountController,
       ],
       providers: [
         AuthGuard,
@@ -92,6 +96,7 @@ describe('Authenticated HTTP routes', () => {
         { provide: BooksService, useValue: books },
         { provide: IsbnLookupService, useValue: lookup },
         { provide: WishlistService, useValue: wishlist },
+        { provide: AccountService, useValue: account },
       ],
     }).compile();
     app = module.createNestApplication();
@@ -105,6 +110,7 @@ describe('Authenticated HTTP routes', () => {
     '/me/bookshelf',
     '/catalog',
     '/me/wishlist',
+    '/me/account/export',
     '/auth/me',
     '/books',
     '/books/isbn/9780140328721',
@@ -135,6 +141,60 @@ describe('Authenticated HTTP routes', () => {
         accessToken: 'valid-a',
       }),
     );
+  });
+  it('exports the verified account with private caching disabled', async () => {
+    account.export.mockResolvedValue({ version: 1, books: [] });
+    await request(app.getHttpServer())
+      .get('/me/account/export')
+      .set('Authorization', 'Bearer valid-a')
+      .expect(200)
+      .expect('Cache-Control', 'no-store')
+      .expect(
+        'Content-Disposition',
+        'attachment; filename="entre-paginas.json"',
+      );
+    expect(account.export).toHaveBeenCalledWith(
+      expect.objectContaining({
+        accessToken: 'valid-a',
+        user: expect.objectContaining({ id: 'user-a' }),
+      }),
+    );
+  });
+  it('deletes only the verified account after validated confirmation', async () => {
+    await request(app.getHttpServer())
+      .delete('/me/account')
+      .set('Authorization', 'Bearer valid-a')
+      .send({ password: 'current-password', confirmation: 'ELIMINAR' })
+      .expect(204);
+    expect(account.remove).toHaveBeenCalledWith(
+      expect.objectContaining({
+        user: expect.objectContaining({ id: 'user-a' }),
+      }),
+      'current-password',
+    );
+  });
+  it.each([
+    { password: 'p', confirmation: 'ELIMINAR', user_id: 'victim' },
+    { password: 'p', confirmation: 'ELIMINAR', email: 'victim@example.com' },
+    { password: '', confirmation: 'ELIMINAR' },
+    { password: null, confirmation: 'ELIMINAR' },
+    { password: 'p', confirmation: 'eliminar' },
+    { password: 'p' },
+    { password: 'p'.repeat(129), confirmation: 'ELIMINAR' },
+  ])('rejects unsafe account deletion data %j', async (body) => {
+    await request(app.getHttpServer())
+      .delete('/me/account')
+      .set('Authorization', 'Bearer valid-a')
+      .send(body)
+      .expect(400);
+    expect(account.remove).not.toHaveBeenCalled();
+  });
+  it('requires authentication to delete an account', async () => {
+    await request(app.getHttpServer())
+      .delete('/me/account')
+      .send({ password: 'p', confirmation: 'ELIMINAR' })
+      .expect(401);
+    expect(account.remove).not.toHaveBeenCalled();
   });
   it('browses the catalogue with validated defaults and private caching disabled', async () => {
     await request(app.getHttpServer())

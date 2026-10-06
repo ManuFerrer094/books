@@ -21,11 +21,11 @@ import { BookshelfDto, SpineDto } from './bookshelf.dto.js';
 import { PersonalBookMetadataDto } from './book-metadata.dto.js';
 import { CoverDto } from './cover.dto.js';
 
-const LIBRARY_SELECT =
+export const LIBRARY_SELECT =
   'book_id, status, is_lent, lent_to, notes, rating, added_at, updated_at, metadata, cover_image_path, spine_color, spine_width, spine_height, spine_image_path, books(*, book_authors(authors(id, name)))';
 type Identity = Pick<AuthRequest, 'user' | 'accessToken'>;
 
-function libraryBook(row: any) {
+export function libraryBook(row: any) {
   const {
     books,
     metadata = {},
