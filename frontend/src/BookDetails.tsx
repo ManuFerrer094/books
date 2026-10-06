@@ -1,10 +1,9 @@
-import { lazy, Suspense, useState } from 'react';
+import { useState } from 'react';
 import { Pencil, Trash2 } from 'lucide-react';
 import { api, errorMessage } from './api';
 import { Cover, Dialog, Feedback, StatusSelect } from './components';
 import type { LibraryBook, ReadingStatus } from './types';
 import BookMetadataEditor from './BookMetadataEditor';
-const SpineEditor = lazy(() => import('./SpineEditor'));
 
 export default function BookDetails({
   ownerId,
@@ -22,7 +21,6 @@ export default function BookDetails({
   const [busy, setBusy] = useState(false);
   const [confirm, setConfirm] = useState(false);
   const [error, setError] = useState('');
-  const [editingSpine, setEditingSpine] = useState(false);
   const [editingMetadata, setEditingMetadata] = useState(false);
   const book = entry.book;
   async function changeStatus(status: ReadingStatus) {
@@ -121,7 +119,7 @@ export default function BookDetails({
       ) : (
         <button
           className="button secondary personalize-spine"
-          disabled={busy || editingSpine}
+          disabled={busy}
           onClick={() => {
             setError('');
             setConfirm(false);
@@ -131,33 +129,6 @@ export default function BookDetails({
           <Pencil size={15} /> Editar mi libro
         </button>
       )}
-      {!editingMetadata &&
-        (editingSpine ? (
-          <Suspense
-            fallback={
-              <p className="small-note" role="status">
-                Abriendo el editor del lomo…
-              </p>
-            }
-          >
-            <SpineEditor
-              key={entry.book_id}
-              ownerId={ownerId}
-              entry={entry}
-              onUpdated={onUpdated}
-              onClose={() => setEditingSpine(false)}
-              onBusy={setBusy}
-            />
-          </Suspense>
-        ) : (
-          <button
-            className="button secondary personalize-spine"
-            disabled={busy}
-            onClick={() => setEditingSpine(true)}
-          >
-            Personalizar lomo
-          </button>
-        ))}
       <Feedback error={error} />
       {!editingMetadata && (
         <div className="details-footer">

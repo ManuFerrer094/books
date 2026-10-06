@@ -9,6 +9,7 @@ export interface Book {
   pages: number | null;
   language: string | null;
   cover_url: string | null;
+  cover_image_path?: string | null;
 }
 export interface LibraryBook {
   customized?: boolean;

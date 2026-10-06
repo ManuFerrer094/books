@@ -49,6 +49,8 @@ Aplica también, **antes de desplegar esta versión**, la [migración 004 de dat
 
 ## Prueba conjunta de los servicios
 
+Para la edición de portadas mediante fotos, aplica también la [migración 005](src/books/database/migrations/005_cover_photos.sql), después de 001–004 y antes de desplegar frontend y API. Crea el bucket privado `book-covers` y la ruta personal de portada. No requiere nuevas variables de entorno.
+
 Con una CLI actual de Vercel, desde la raíz:
 
 ```sh

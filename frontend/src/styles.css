@@ -2064,6 +2064,62 @@ h3 {
 .metadata-editor {
   margin-top: 24px;
 }
+.book-editor-navigation {
+  display: flex;
+  align-items: stretch;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin: 20px 0 24px;
+}
+.book-editor-navigation .button {
+  margin: 0;
+}
+.book-photo-inputs {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: stretch;
+  gap: 12px;
+}
+.book-photo-inputs .spine-upload {
+  margin: 0;
+}
+.photo-cover {
+  display: block;
+  width: 144px;
+  height: auto;
+  border-radius: 4px 9px 9px 4px;
+  box-shadow: 2px 4px 8px rgba(45, 37, 25, 0.2);
+}
+.cover-editor .spine-photo-layout {
+  grid-template-columns: minmax(0, 1fr) 176px;
+}
+.cover-editor .spine-preview {
+  background: #eee8d8;
+  box-shadow: none;
+}
+.cover-editor .spine-preview .cover {
+  width: 144px;
+}
+@media (min-width: 541px) {
+  .cover-editor .spine-editor-layout:not(.has-photo) {
+    grid-template-columns: 160px minmax(0, 1fr);
+  }
+}
+@media (max-width: 540px) {
+  .cover-editor .spine-photo-layout,
+  .cover-editor .spine-editor-layout:not(.has-photo) {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .cover-editor .spine-preview {
+    position: static;
+    flex-direction: row;
+    min-height: 0;
+  }
+  .cover-editor .spine-preview .cover,
+  .cover-editor .photo-cover {
+    width: 96px;
+  }
+}
 .metadata-editor fieldset {
   border: 0;
   padding: 0;

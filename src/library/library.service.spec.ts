@@ -278,6 +278,110 @@ describe('LibraryService', () => {
     ).rejects.toBeInstanceOf(BadRequestException);
     expect(query.update).not.toHaveBeenCalled();
   });
+  it('verifies private covers and cleans up the previous photo after saving', async () => {
+    const list = jest
+      .fn<any>()
+      .mockResolvedValue({ data: [{ name: 'new.jpg' }], error: null });
+    const remove = jest.fn<any>().mockResolvedValue({ error: null });
+    const storageFrom = jest.fn().mockReturnValue({ list, remove });
+    const from = jest.fn().mockReturnValue(query);
+    clients.create.mockReturnValue({ from, storage: { from: storageFrom } });
+    query.maybeSingle
+      .mockResolvedValueOnce({
+        data: { ...row, cover_image_path: 'user-a/1/old.jpg' },
+        error: null,
+      })
+      .mockResolvedValueOnce({
+        data: { ...row, cover_image_path: 'user-a/1/new.jpg' },
+        error: null,
+      });
+    const saved = await service.updateCover(identity, 1, {
+      image_path: 'user-a/1/new.jpg',
+    });
+    expect(saved.book.cover_image_path).toBe('user-a/1/new.jpg');
+    expect(saved.customized).toBe(true);
+    expect(saved.status).toBe('reading');
+    expect(storageFrom).toHaveBeenCalledWith('book-covers');
+    expect(list).toHaveBeenCalledWith('user-a/1', { search: 'new.jpg' });
+    expect(query.update).toHaveBeenCalledWith({
+      cover_image_path: 'user-a/1/new.jpg',
+      updated_at: expect.any(String),
+    });
+    expect(query.eq).toHaveBeenCalledWith('user_id', 'user-a');
+    expect(remove).toHaveBeenCalledWith(['user-a/1/old.jpg']);
+    expect(query.update.mock.invocationCallOrder[0]).toBeLessThan(
+      remove.mock.invocationCallOrder[0],
+    );
+    expect(from).not.toHaveBeenCalledWith('books');
+  });
+  it('rejects another owner, another book or a missing cover photo', async () => {
+    const list = jest.fn<any>().mockResolvedValue({ data: [], error: null });
+    clients.create.mockReturnValue({
+      from: jest.fn().mockReturnValue(query),
+      storage: { from: jest.fn().mockReturnValue({ list }) },
+    });
+    for (const path of [
+      'victim/1/photo.jpg',
+      'user-a/2/photo.jpg',
+      'user-a/1/missing.jpg',
+    ])
+      await expect(
+        service.updateCover(identity, 1, { image_path: path }),
+      ).rejects.toBeInstanceOf(BadRequestException);
+    expect(query.update).not.toHaveBeenCalled();
+  });
+  it('preserves the old cover when saving fails and cleans it after a reset', async () => {
+    const rpc = jest.fn<any>().mockResolvedValue({ data: true, error: null });
+    const remove = jest.fn<any>().mockResolvedValue({ error: null });
+    clients.create.mockReturnValue({
+      rpc,
+      from: jest.fn().mockReturnValue(query),
+      storage: { from: jest.fn().mockReturnValue({ remove }) },
+    });
+    query.maybeSingle
+      .mockResolvedValueOnce({
+        data: { ...row, cover_image_path: 'user-a/1/old.jpg' },
+        error: null,
+      })
+      .mockResolvedValueOnce({ data: null, error: { code: 'unknown' } });
+    await expect(
+      service.updateCover(identity, 1, { image_path: null }),
+    ).rejects.toBeInstanceOf(InternalServerErrorException);
+    expect(remove).not.toHaveBeenCalled();
+    query.maybeSingle
+      .mockResolvedValueOnce({
+        data: { ...row, cover_image_path: 'user-a/1/old.jpg' },
+        error: null,
+      })
+      .mockResolvedValueOnce({
+        data: { ...row, cover_image_path: null },
+        error: null,
+      });
+    const saved = await service.updateMetadata(identity, 1, null);
+    expect(saved.book.cover_image_path).toBeNull();
+    expect(remove).toHaveBeenCalledWith(['user-a/1/old.jpg']);
+  });
+  it('cleans both cover and spine photos when removing an entry', async () => {
+    const remove = jest.fn<any>().mockResolvedValue({ error: null });
+    const storageFrom = jest.fn().mockReturnValue({ remove });
+    clients.create.mockReturnValue({
+      from: jest.fn().mockReturnValue(query),
+      storage: { from: storageFrom },
+    });
+    query.maybeSingle.mockResolvedValue({
+      data: {
+        book_id: 1,
+        cover_image_path: 'user-a/1/cover.jpg',
+        spine_image_path: 'user-a/1/spine.jpg',
+      },
+      error: null,
+    });
+    await service.remove(identity, 1);
+    expect(storageFrom).toHaveBeenCalledWith('book-covers');
+    expect(storageFrom).toHaveBeenCalledWith('book-spines');
+    expect(remove).toHaveBeenCalledWith(['user-a/1/cover.jpg']);
+    expect(remove).toHaveBeenCalledWith(['user-a/1/spine.jpg']);
+  });
   it('verifies images and cleans up the old photo only after saving', async () => {
     const list = jest
       .fn<any>()

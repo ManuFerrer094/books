@@ -44,6 +44,7 @@ async function setup(
     brokenPhoto?: boolean;
     ambiguousPhotoOnce?: boolean;
     failMetadataOnce?: boolean;
+    failCoverOnce?: boolean;
   } = {},
 ) {
   let books = options.empty ? [] : fixtureBooks();
@@ -59,6 +60,7 @@ async function setup(
   let staleShelf = options.staleShelfOnce;
   let failUpload = options.failUploadOnce;
   let failSpine = options.failSpineOnce;
+  let failCover = options.failCoverOnce;
   let ambiguous = options.ambiguousPhotoOnce;
   const deletedPhotos: string[] = [];
   const uploadedPhotos: { path: string; size: number }[] = [];
@@ -66,6 +68,7 @@ async function setup(
   const originalBooks = new Map(
     books.map((entry) => [entry.book_id, { ...entry.book }]),
   );
+  const customizedMetadata = new Set<number>();
   let failMetadata = options.failMetadataOnce;
   let catalog: Book | null = null;
   let creates = 0;
@@ -107,7 +110,7 @@ async function setup(
     if (path.includes('/object/sign/') && method === 'POST')
       return route.fulfill({
         json: {
-          signedURL: `/object/sign/book-spines/${path.split('/book-spines/')[1]}?token=fixture`,
+          signedURL: `/object/sign/${path.split('/object/sign/')[1]}?token=fixture`,
         },
       });
     if (path.includes('/object/sign/') && method === 'GET') {
@@ -120,7 +123,11 @@ async function setup(
         ),
       });
     }
-    if (path.includes('/object/book-spines/') && method === 'POST') {
+    if (
+      (path.includes('/object/book-spines/') ||
+        path.includes('/object/book-covers/')) &&
+      method === 'POST'
+    ) {
       if (failUpload) {
         failUpload = false;
         return route.fulfill({
@@ -130,7 +137,7 @@ async function setup(
       }
       const key = path.split('/object/')[1];
       uploadedPhotos.push({
-        path: key.replace('book-spines/', ''),
+        path: key.replace(/^book-(spines|covers)\//, ''),
         size: route.request().postDataBuffer()?.length ?? 0,
       });
       return route.fulfill({ json: { Key: key, Id: 'photo-id' } });
@@ -236,11 +243,35 @@ async function setup(
       }
       const entry = books.find((item) => item.book_id === id);
       if (!entry) return route.fulfill({ status: 404, json: {} });
+      const previousPhoto = entry.book.cover_image_path;
       entry.book =
         method === 'DELETE'
           ? { ...originalBooks.get(id)! }
           : { ...entry.book, ...body };
-      entry.customized = method !== 'DELETE';
+      if (method === 'DELETE') customizedMetadata.delete(id);
+      else if (Object.keys(body).length) customizedMetadata.add(id);
+      entry.customized =
+        customizedMetadata.has(id) || !!entry.book.cover_image_path;
+      if (method === 'DELETE' && previousPhoto) {
+        deletedPhotos.push(previousPhoto);
+      }
+      return route.fulfill({ json: entry });
+    }
+    if (path.endsWith('/cover') && method === 'PATCH') {
+      if (failCover) {
+        failCover = false;
+        return route.fulfill({ status: 500, json: {} });
+      }
+      const entry = books.find((item) => item.book_id === id)!;
+      const previous = entry.book.cover_image_path;
+      entry.book.cover_image_path = body.image_path;
+      entry.customized = !!body.image_path || customizedMetadata.has(id);
+      if (previous && previous !== body.image_path)
+        deletedPhotos.push(previous);
+      if (ambiguous) {
+        ambiguous = false;
+        return route.abort('failed');
+      }
       return route.fulfill({ json: entry });
     }
     if (path.endsWith('/spine') && method === 'PATCH') {
@@ -353,15 +384,6 @@ test('editar mi libro: reintentar, persistir, buscar y restaurar sus datos', asy
   page,
 }, testInfo) => {
   const mock = await setup(page, { failMetadataOnce: true });
-  await page.route('https://example.com/my-cover.jpg', (route) =>
-    route.fulfill({
-      contentType: 'image/png',
-      body: Buffer.from(
-        'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVQIHWP4z8DwHwAFgAI/ScLbtAAAAABJRU5ErkJggg==',
-        'base64',
-      ),
-    }),
-  );
   await login(page);
   await page
     .getByRole('button', { name: 'Ver El infinito en un junco' })
@@ -373,9 +395,7 @@ test('editar mi libro: reintentar, persistir, buscar y restaurar sus datos', asy
   await page.getByLabel('Autor 1', { exact: true }).fill('Mi autora');
   await page.getByRole('button', { name: 'Añadir autor', exact: true }).click();
   await page.getByLabel('Autor 2', { exact: true }).fill('Otro autor');
-  await page
-    .getByLabel('URL de la portada', { exact: true })
-    .fill('https://example.com/my-cover.jpg');
+  await expect(page.getByLabel('URL de la portada')).toHaveCount(0);
   await page.getByLabel('Editorial', { exact: true }).fill('Mi editorial');
   await page.getByLabel('Páginas', { exact: true }).fill('123');
   await page.screenshot({
@@ -405,11 +425,6 @@ test('editar mi libro: reintentar, persistir, buscar y restaurar sus datos', asy
   await expect(page.getByRole('dialog')).toContainText(
     'Mi autora · Otro autor',
   );
-  await expect(
-    page
-      .getByRole('dialog')
-      .getByRole('img', { name: 'Portada de Mi edición del junco' }),
-  ).toHaveAttribute('src', 'https://example.com/my-cover.jpg');
   await page.getByRole('button', { name: 'Cerrar', exact: true }).click();
   await page.reload({ waitUntil: 'domcontentloaded' });
   await page.getByLabel('Buscar por título, autor o ISBN').fill('Mi autora');
@@ -434,6 +449,193 @@ test('editar mi libro: reintentar, persistir, buscar y restaurar sus datos', asy
   expect(mock.getBooks()[0].book.title).toBe('El infinito en un junco');
   expect(mock.getBooks()[1].book.title).toBe('El principito');
   expect(mock.getCreates()).toBe(0);
+});
+
+test('portadas: foto, recorte, reintentos, borrador, persistencia y restauración', async ({
+  page,
+}, testInfo) => {
+  const mock = await setup(page, { failUploadOnce: true, failCoverOnce: true });
+  await login(page);
+  await page
+    .getByRole('button', { name: 'Ver El infinito en un junco', exact: true })
+    .click();
+  await expect(
+    page.getByRole('button', { name: 'Personalizar lomo', exact: true }),
+  ).toHaveCount(0);
+  await page
+    .getByRole('button', { name: 'Editar mi libro', exact: true })
+    .click();
+  await page.getByLabel('Título', { exact: true }).fill('Mi ejemplar');
+  await page.screenshot({ path: testInfo.outputPath('editar-libro.png') });
+  await page.getByRole('button', { name: 'Portada', exact: true }).click();
+  const input = page.getByLabel('Hacer foto de la portada', { exact: true });
+  await expect(input).toHaveAttribute('capture', 'environment');
+  await input.setInputFiles({
+    name: 'documento.txt',
+    mimeType: 'text/plain',
+    buffer: Buffer.from('Texto'),
+  });
+  await expect(page.getByRole('alert')).toContainText('JPEG');
+  await input.setInputFiles(await photoFixture(page, false, true));
+  await expect(
+    page.getByRole('heading', { name: 'Encuadra solo la portada' }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole('button', { name: 'Guardar portada', exact: true }),
+  ).toBeDisabled();
+  await page.getByRole('button', { name: 'Girar 90°', exact: true }).click();
+  await setRange(page, 'Enderezar', '4');
+  const frame = page.getByRole('group', {
+    name: 'Área de la foto que se usará como portada',
+  });
+  const initialHeight = Number(await frame.getAttribute('data-crop-height'));
+  await page
+    .getByRole('button', {
+      name: 'Ajustar borde inferior del recorte',
+      exact: true,
+    })
+    .focus();
+  await page
+    .getByRole('button', {
+      name: 'Ajustar borde inferior del recorte',
+      exact: true,
+    })
+    .press('ArrowUp');
+  await expect
+    .poll(async () => Number(await frame.getAttribute('data-crop-height')))
+    .toBeLessThan(initialHeight);
+  expect(
+    await page
+      .locator('canvas.photo-cover')
+      .evaluate((canvas) => (canvas as HTMLCanvasElement).height),
+  ).toBe(1024);
+  await page.screenshot({ path: testInfo.outputPath('recortar-portada.png') });
+  expect(
+    await page
+      .getByRole('dialog')
+      .evaluate((dialog) => dialog.scrollWidth - dialog.clientWidth),
+  ).toBeLessThanOrEqual(1);
+  expect(
+    await page.evaluate(() => document.documentElement.scrollWidth),
+  ).toBeLessThanOrEqual(page.viewportSize()!.width);
+  await page
+    .getByRole('button', { name: 'Usar este recorte', exact: true })
+    .click();
+  await page
+    .getByRole('button', { name: 'Guardar portada', exact: true })
+    .click();
+  await expect(page.getByRole('alert')).toContainText('subir la foto');
+  await page
+    .getByRole('button', { name: 'Guardar portada', exact: true })
+    .click();
+  await expect(page.getByRole('alert')).toContainText(
+    'No se ha guardado la portada',
+  );
+  expect(mock.getDeletedPhotos()).toContain(mock.getUploadedPhotos()[0].path);
+  await page
+    .getByRole('button', { name: 'Guardar portada', exact: true })
+    .click();
+  await expect(
+    page.getByText('Portada guardada.', { exact: true }),
+  ).toBeVisible();
+  const path = mock.getBooks()[0].book.cover_image_path!;
+  expect(path).toMatch(/\/1\/[\da-f-]+\.jpg$/);
+  expect(mock.getBooks()[1].book.cover_image_path).toBeUndefined();
+  await page
+    .getByRole('button', { name: 'Datos del libro', exact: true })
+    .click();
+  await expect(page.getByLabel('Título', { exact: true })).toHaveValue(
+    'Mi ejemplar',
+  );
+  await page
+    .getByRole('button', { name: 'Guardar cambios', exact: true })
+    .click();
+  await expect(
+    page
+      .getByRole('dialog')
+      .getByRole('img', { name: 'Portada de Mi ejemplar' }),
+  ).toBeVisible();
+  await page.getByRole('button', { name: 'Cerrar', exact: true }).click();
+  await page.reload({ waitUntil: 'domcontentloaded' });
+  await page
+    .getByRole('button', { name: 'Ver Mi ejemplar', exact: true })
+    .click();
+  await expect(
+    page
+      .getByRole('dialog')
+      .getByRole('img', { name: 'Portada de Mi ejemplar' }),
+  ).toHaveAttribute('src', /book-covers/);
+  await page
+    .getByRole('button', { name: 'Editar mi libro', exact: true })
+    .click();
+  await page.getByRole('button', { name: 'Portada', exact: true }).click();
+  await page
+    .getByLabel('Foto de la portada', { exact: true })
+    .setInputFiles(await photoFixture(page));
+  await page
+    .getByRole('button', { name: 'Usar este recorte', exact: true })
+    .click();
+  await page
+    .getByRole('button', { name: 'Guardar portada', exact: true })
+    .click();
+  await expect(
+    page.getByText('Portada guardada.', { exact: true }),
+  ).toBeVisible();
+  const replacementPath = mock.getBooks()[0].book.cover_image_path!;
+  expect(replacementPath).not.toBe(path);
+  expect(mock.getDeletedPhotos()).toContain(path);
+  await page
+    .getByRole('button', { name: 'Restaurar portada original', exact: true })
+    .click();
+  await page
+    .getByRole('button', { name: 'Guardar portada', exact: true })
+    .click();
+  await expect(
+    page.getByText('Portada guardada.', { exact: true }),
+  ).toBeVisible();
+  expect(mock.getBooks()[0].book.cover_image_path).toBeNull();
+  expect(mock.getDeletedPhotos()).toContain(replacementPath);
+  expect(mock.getBooks()[0].book.title).toBe('Mi ejemplar');
+  expect(mock.getBooks()[0].status).toBe('pending');
+});
+
+test('portadas: una respuesta perdida conserva la foto guardada y una imagen rota tiene alternativa', async ({
+  page,
+}) => {
+  const mock = await setup(page, {
+    ambiguousPhotoOnce: true,
+    brokenPhoto: true,
+  });
+  await login(page);
+  await page
+    .getByRole('button', { name: 'Ver El infinito en un junco', exact: true })
+    .click();
+  await page
+    .getByRole('button', { name: 'Editar mi libro', exact: true })
+    .click();
+  await page.getByRole('button', { name: 'Portada', exact: true }).click();
+  await page
+    .getByLabel('Foto de la portada', { exact: true })
+    .setInputFiles(await photoFixture(page));
+  await page
+    .getByRole('button', { name: 'Usar este recorte', exact: true })
+    .click();
+  await page
+    .getByRole('button', { name: 'Guardar portada', exact: true })
+    .click();
+  await expect(
+    page.getByText('Portada guardada.', { exact: true }),
+  ).toBeVisible();
+  expect(mock.getDeletedPhotos()).not.toContain(
+    mock.getBooks()[0].book.cover_image_path,
+  );
+  await page.getByRole('button', { name: 'Cerrar', exact: true }).click();
+  await page
+    .getByRole('button', { name: 'Ver El infinito en un junco', exact: true })
+    .click();
+  await expect(
+    page.getByRole('dialog').locator('.cover-fallback'),
+  ).toContainText('El infinito en un junco');
 });
 
 test('alta por ISBN: valida y evita duplicados', async ({ page }) => {
@@ -506,6 +708,14 @@ async function setRange(page: Page, label: string, value: string) {
     input.dispatchEvent(new Event('input', { bubbles: true }));
     input.dispatchEvent(new Event('change', { bubbles: true }));
   }, value);
+}
+async function openSpineEditor(page: Page) {
+  await page
+    .getByRole('button', { name: 'Editar mi libro', exact: true })
+    .click();
+  await page
+    .getByRole('button', { name: 'Personalizar lomo', exact: true })
+    .click();
 }
 async function photoFixture(page: Page, withHand = false, horizontal = false) {
   const data = await page.evaluate(
@@ -782,9 +992,7 @@ test('lomos: la foto de cámara abre un recorte táctil que excluye la mano en t
   await page
     .getByRole('button', { name: 'Ver El infinito en un junco', exact: true })
     .click();
-  await page
-    .getByRole('button', { name: 'Personalizar lomo', exact: true })
-    .click();
+  await openSpineEditor(page);
   const camera = page.getByLabel('Hacer foto del lomo', { exact: true });
   await expect(camera).toHaveAttribute('capture', 'environment');
   await camera.setInputFiles(await photoFixture(page, true));
@@ -861,9 +1069,7 @@ test('lomos: gira y endereza la foto dentro del recorte antes de usarla', async 
   await page
     .getByRole('button', { name: 'Ver El infinito en un junco', exact: true })
     .click();
-  await page
-    .getByRole('button', { name: 'Personalizar lomo', exact: true })
-    .click();
+  await openSpineEditor(page);
   await page
     .getByLabel('Foto del lomo', { exact: true })
     .setInputFiles(await photoFixture(page, false, true));
@@ -917,9 +1123,7 @@ test('lomos: color, dimensiones, recorte de foto, persistencia y restauración',
   await page
     .getByRole('button', { name: 'Ver El infinito en un junco', exact: true })
     .click();
-  await page
-    .getByRole('button', { name: 'Personalizar lomo', exact: true })
-    .click();
+  await openSpineEditor(page);
   await page
     .getByRole('button', { name: 'Color #733f45', exact: true })
     .click();
@@ -966,9 +1170,7 @@ test('lomos: color, dimensiones, recorte de foto, persistencia y restauración',
   await page
     .getByRole('button', { name: 'Ver El infinito en un junco', exact: true })
     .click();
-  await page
-    .getByRole('button', { name: 'Personalizar lomo', exact: true })
-    .click();
+  await openSpineEditor(page);
   await page
     .getByRole('button', { name: 'Restaurar aspecto automático' })
     .click();
@@ -991,9 +1193,7 @@ test('lomos: valida archivos, recupera una subida fallida y limpia una asociaci�
   await page
     .getByRole('button', { name: 'Ver El infinito en un junco', exact: true })
     .click();
-  await page
-    .getByRole('button', { name: 'Personalizar lomo', exact: true })
-    .click();
+  await openSpineEditor(page);
   const input = page.getByLabel('Foto del lomo', { exact: true });
   await input.setInputFiles({
     name: 'documento.txt',
@@ -1040,9 +1240,7 @@ test('lomos: una respuesta perdida no elimina la foto guardada y una imagen rota
   await page
     .getByRole('button', { name: 'Ver El infinito en un junco', exact: true })
     .click();
-  await page
-    .getByRole('button', { name: 'Personalizar lomo', exact: true })
-    .click();
+  await openSpineEditor(page);
   await page
     .getByLabel('Foto del lomo', { exact: true })
     .setInputFiles(await photoFixture(page));

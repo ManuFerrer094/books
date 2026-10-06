@@ -1,7 +1,8 @@
-import { useState, type FormEvent } from 'react';
+import { lazy, Suspense, useState, type FormEvent } from 'react';
 import { api, errorMessage } from './api';
 import { Feedback } from './components';
 import type { Book, LibraryBook } from './types';
+const BookAppearanceEditor = lazy(() => import('./BookAppearanceEditor'));
 
 type Metadata = Pick<
   Book,
@@ -12,7 +13,6 @@ type Metadata = Pick<
   | 'publication_date'
   | 'pages'
   | 'language'
-  | 'cover_url'
 >;
 
 export default function BookMetadataEditor({
@@ -38,13 +38,15 @@ export default function BookMetadataEditor({
   const [date, setDate] = useState(book.publication_date?.slice(0, 10) ?? '');
   const [pages, setPages] = useState(book.pages?.toString() ?? '');
   const [language, setLanguage] = useState(book.language ?? '');
-  const [cover, setCover] = useState(book.cover_url ?? '');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [confirmReset, setConfirmReset] = useState(false);
+  const [mode, setMode] = useState<'data' | 'cover' | 'spine'>('data');
+  const [visited, setVisited] = useState({ cover: false, spine: false });
+  const [photoBusy, setPhotoBusy] = useState(false);
 
   async function save(reset = false) {
-    if (busy) return;
+    if (busy || photoBusy) return;
     const next: Metadata = {
       title: title.trim(),
       authors: authors
@@ -56,7 +58,6 @@ export default function BookMetadataEditor({
       publication_date: date || null,
       pages: pages === '' ? null : Number(pages),
       language: language.trim() || null,
-      cover_url: cover.trim() || null,
     };
     if (!reset && !next.title) {
       setError('Escribe el título del libro.');
@@ -71,7 +72,6 @@ export default function BookMetadataEditor({
       publication_date: book.publication_date?.slice(0, 10) ?? null,
       pages: book.pages ?? null,
       language: book.language ?? null,
-      cover_url: book.cover_url ?? null,
     };
     const patch = Object.fromEntries(
       (Object.keys(next) as (keyof Metadata)[])
@@ -107,168 +107,207 @@ export default function BookMetadataEditor({
   }
 
   return (
-    <form className="metadata-editor" onSubmit={submit}>
+    <section className="metadata-editor" aria-label="Editar mi libro">
       <p className="small-note">
         Estos cambios se guardan solo en tu biblioteca.
       </p>
-      <fieldset disabled={busy}>
-        <label className="field">
-          Título
-          <input
-            autoFocus
-            value={title}
-            onChange={(event) => setTitle(event.target.value)}
-            required
-            maxLength={500}
-          />
-        </label>
-        <div className="field">
-          <span>Autor o autores</span>
-          {authors.map((name, index) => (
-            <div className="author-editor-row" key={index}>
-              <input
-                aria-label={`Autor ${index + 1}`}
-                value={name}
-                maxLength={255}
-                onChange={(event) =>
-                  setAuthors(
-                    authors.map((item, i) =>
-                      i === index ? event.target.value : item,
-                    ),
-                  )
-                }
-              />
-              <button
-                type="button"
-                className="text-button"
-                aria-label={`Quitar autor ${index + 1}`}
-                onClick={() =>
-                  setAuthors(authors.filter((_, i) => i !== index))
-                }
-              >
-                Quitar
-              </button>
-            </div>
-          ))}
+      <div className="book-editor-navigation" aria-label="Opciones de edición">
+        {(
+          [
+            ['data', 'Datos del libro'],
+            ['cover', 'Portada'],
+            ['spine', 'Personalizar lomo'],
+          ] as const
+        ).map(([value, label]) => (
           <button
+            key={value}
             type="button"
-            className="text-button"
-            onClick={() => setAuthors([...authors, ''])}
+            className={`button ${mode === value ? 'primary' : 'secondary'}`}
+            aria-pressed={mode === value}
+            disabled={busy || photoBusy}
+            onClick={() => {
+              setMode(value);
+              if (value !== 'data')
+                setVisited((old) => ({ ...old, [value]: true }));
+            }}
           >
-            Añadir autor
-          </button>
-        </div>
-        <label className="field">
-          URL de la portada
-          <input
-            type="url"
-            value={cover}
-            maxLength={1000}
-            placeholder="https://…"
-            onChange={(event) => setCover(event.target.value)}
-          />
-        </label>
-        <p className="small-note">
-          Pega el enlace de una imagen. Déjalo vacío para quitar la portada.
-        </p>
-        <div className="metadata-editor-grid">
-          <label className="field">
-            Editorial
-            <input
-              value={publisher}
-              maxLength={255}
-              onChange={(event) => setPublisher(event.target.value)}
-            />
-          </label>
-          <label className="field">
-            Fecha de publicación
-            <input
-              type="date"
-              value={date}
-              min="0001-01-01"
-              max="9999-12-31"
-              onChange={(event) => setDate(event.target.value)}
-            />
-          </label>
-          <label className="field">
-            Páginas
-            <input
-              type="number"
-              min={1}
-              max={2147483647}
-              step={1}
-              value={pages}
-              onChange={(event) => setPages(event.target.value)}
-            />
-          </label>
-          <label className="field">
-            Idioma
-            <input
-              value={language}
-              maxLength={50}
-              onChange={(event) => setLanguage(event.target.value)}
-            />
-          </label>
-          <label className="field">
-            ISBN
-            <input
-              value={isbn}
-              maxLength={20}
-              onChange={(event) => setIsbn(event.target.value)}
-            />
-          </label>
-        </div>
-      </fieldset>
-      <Feedback error={error} />
-      <div className="button-row">
-        <button type="submit" className="button primary" disabled={busy}>
-          {busy ? 'Guardando…' : 'Guardar cambios'}
-        </button>
-        <button
-          type="button"
-          className="button secondary"
-          disabled={busy}
-          onClick={onClose}
-        >
-          Cancelar edición
-        </button>
-      </div>
-      {entry.customized &&
-        (confirmReset ? (
-          <div className="remove-confirm">
-            <p>
-              ¿Restaurar todos los datos originales del catálogo? Se quitarán
-              tus cambios de la ficha.
-            </p>
-            <div className="button-row">
-              <button
-                type="button"
-                className="button secondary"
-                disabled={busy}
-                onClick={() => setConfirmReset(false)}
-              >
-                Conservar mis cambios
-              </button>
-              <button
-                type="button"
-                className="button secondary"
-                disabled={busy}
-                onClick={() => void save(true)}
-              >
-                Sí, restaurar
-              </button>
-            </div>
-          </div>
-        ) : (
-          <button
-            type="button"
-            className="text-button"
-            disabled={busy}
-            onClick={() => setConfirmReset(true)}
-          >
-            Restaurar datos del catálogo
+            {label}
           </button>
         ))}
-    </form>
+      </div>
+      <form onSubmit={submit} hidden={mode !== 'data'}>
+        <fieldset disabled={busy}>
+          <label className="field">
+            Título
+            <input
+              autoFocus
+              value={title}
+              onChange={(event) => setTitle(event.target.value)}
+              required
+              maxLength={500}
+            />
+          </label>
+          <div className="field">
+            <span>Autor o autores</span>
+            {authors.map((name, index) => (
+              <div className="author-editor-row" key={index}>
+                <input
+                  aria-label={`Autor ${index + 1}`}
+                  value={name}
+                  maxLength={255}
+                  onChange={(event) =>
+                    setAuthors(
+                      authors.map((item, i) =>
+                        i === index ? event.target.value : item,
+                      ),
+                    )
+                  }
+                />
+                <button
+                  type="button"
+                  className="text-button"
+                  aria-label={`Quitar autor ${index + 1}`}
+                  onClick={() =>
+                    setAuthors(authors.filter((_, i) => i !== index))
+                  }
+                >
+                  Quitar
+                </button>
+              </div>
+            ))}
+            <button
+              type="button"
+              className="text-button"
+              onClick={() => setAuthors([...authors, ''])}
+            >
+              Añadir autor
+            </button>
+          </div>
+          <div className="metadata-editor-grid">
+            <label className="field">
+              Editorial
+              <input
+                value={publisher}
+                maxLength={255}
+                onChange={(event) => setPublisher(event.target.value)}
+              />
+            </label>
+            <label className="field">
+              Fecha de publicación
+              <input
+                type="date"
+                value={date}
+                min="0001-01-01"
+                max="9999-12-31"
+                onChange={(event) => setDate(event.target.value)}
+              />
+            </label>
+            <label className="field">
+              Páginas
+              <input
+                type="number"
+                min={1}
+                max={2147483647}
+                step={1}
+                value={pages}
+                onChange={(event) => setPages(event.target.value)}
+              />
+            </label>
+            <label className="field">
+              Idioma
+              <input
+                value={language}
+                maxLength={50}
+                onChange={(event) => setLanguage(event.target.value)}
+              />
+            </label>
+            <label className="field">
+              ISBN
+              <input
+                value={isbn}
+                maxLength={20}
+                onChange={(event) => setIsbn(event.target.value)}
+              />
+            </label>
+          </div>
+        </fieldset>
+        <Feedback error={error} />
+        <div className="button-row">
+          <button type="submit" className="button primary" disabled={busy}>
+            {busy ? 'Guardando…' : 'Guardar cambios'}
+          </button>
+          <button
+            type="button"
+            className="button secondary"
+            disabled={busy}
+            onClick={onClose}
+          >
+            Cancelar edición
+          </button>
+        </div>
+        {entry.customized &&
+          (confirmReset ? (
+            <div className="remove-confirm">
+              <p>
+                ¿Restaurar todos los datos originales del catálogo? Se quitarán
+                tus cambios de la ficha.
+              </p>
+              <div className="button-row">
+                <button
+                  type="button"
+                  className="button secondary"
+                  disabled={busy}
+                  onClick={() => setConfirmReset(false)}
+                >
+                  Conservar mis cambios
+                </button>
+                <button
+                  type="button"
+                  className="button secondary"
+                  disabled={busy}
+                  onClick={() => void save(true)}
+                >
+                  Sí, restaurar
+                </button>
+              </div>
+            </div>
+          ) : (
+            <button
+              type="button"
+              className="text-button"
+              disabled={busy}
+              onClick={() => setConfirmReset(true)}
+            >
+              Restaurar datos del catálogo
+            </button>
+          ))}
+      </form>
+      {(['cover', 'spine'] as const).map(
+        (kind) =>
+          visited[kind] && (
+            <div key={kind} hidden={mode !== kind}>
+              <Suspense
+                fallback={
+                  <p className="small-note" role="status">
+                    Abriendo el editor de fotos…
+                  </p>
+                }
+              >
+                <BookAppearanceEditor
+                  ownerId={ownerId}
+                  entry={entry}
+                  kind={kind}
+                  onUpdated={onUpdated}
+                  onClose={() => setMode('data')}
+                  onBusy={(value) => {
+                    setPhotoBusy(value);
+                    onBusy(value);
+                  }}
+                />
+              </Suspense>
+            </div>
+          ),
+      )}
+    </section>
   );
 }

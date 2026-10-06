@@ -23,23 +23,37 @@ import {
 import { supabase } from './supabase';
 import Spine from './Spine';
 import SpinePhotoCropper from './SpinePhotoCropper';
+import { Cover } from './components';
 import type { LibraryBook, SpineAppearance } from './types';
 
-export default function SpineEditor({
+export default function BookAppearanceEditor({
   ownerId,
   entry,
   onUpdated,
   onClose,
   onBusy,
+  kind = 'spine',
 }: {
   ownerId: string;
   entry: LibraryBook;
   onUpdated: (entry: LibraryBook) => void;
   onClose: () => void;
   onBusy: (busy: boolean) => void;
+  kind?: 'spine' | 'cover';
 }) {
+  const isCover = kind === 'cover';
+  const noun = isCover ? 'portada' : 'lomo';
+  const article = isCover ? 'la portada' : 'el lomo';
+  const bucket = isCover ? 'book-covers' : 'book-spines';
+  const savedNotice = isCover ? 'Portada guardada.' : 'Lomo guardado.';
+  const photoPath = (item: LibraryBook) =>
+    isCover ? item.book.cover_image_path : item.spine?.image_path;
+  const savedAppearance = (item: LibraryBook): SpineAppearance =>
+    isCover
+      ? { ...automaticSpine, image_path: item.book.cover_image_path ?? null }
+      : (item.spine ?? automaticSpine);
   const [appearance, setAppearance] = useState<SpineAppearance>(
-    entry.spine ?? automaticSpine,
+    savedAppearance(entry),
   );
   const [file, setFile] = useState<File | null>(null);
   const [image, setImage] = useState<HTMLImageElement | null>(null);
@@ -65,7 +79,9 @@ export default function SpineEditor({
   const pending = useRef(false);
   const alive = useRef(false);
   const preview = { ...entry, spine: appearance };
-  const style = spineStyle(preview);
+  const style = isCover
+    ? { width: 144, height: 216, color: '#f3eedf' }
+    : spineStyle(preview);
   const ratio = useRef(style.width / style.height);
   ratio.current = style.width / style.height;
   useEffect(() => {
@@ -194,7 +210,7 @@ export default function SpineEditor({
         data: { session },
       } = await supabase!.auth.getSession();
       if (session?.user.id === ownerId)
-        await supabase!.storage.from('book-spines').remove([path]);
+        await supabase!.storage.from(bucket).remove([path]);
     } catch {
       /* A failed cleanup never hides the save result. */
     }
@@ -207,18 +223,18 @@ export default function SpineEditor({
         {},
         ownerId,
       );
-      if (current.spine?.image_path === path) {
+      if (photoPath(current) === path) {
         if (alive.current) {
-          setAppearance(current.spine);
+          setAppearance(savedAppearance(current));
           setFile(null);
-          setNotice('Lomo guardado.');
+          setNotice(savedNotice);
           setError('');
           onUpdated(current);
         }
       } else {
         await cleanup(path);
         if (alive.current)
-          setError('No se ha guardado el lomo. Puedes volver a intentarlo.');
+          setError(`No se ha guardado ${article}. Puedes volver a intentarlo.`);
       }
       if (alive.current) setAmbiguousPath(null);
     } catch (cause) {
@@ -268,10 +284,10 @@ export default function SpineEditor({
           data: { session },
         } = await supabase!.auth.getSession();
         if (!session || session.user.id !== ownerId || !alive.current)
-          throw new Error('Vuelve a entrar para guardar el lomo.');
+          throw new Error(`Vuelve a entrar para guardar ${article}.`);
         const path = `${session.user.id}/${entry.book_id}/${crypto.randomUUID()}.jpg`;
         const { error: uploadError } = await supabase!.storage
-          .from('book-spines')
+          .from(bucket)
           .upload(path, blob, { contentType: 'image/jpeg', upsert: false });
         if (uploadError) {
           await cleanup(path);
@@ -286,14 +302,19 @@ export default function SpineEditor({
       }
       patchStarted = true;
       const saved = await api<LibraryBook>(
-        `/me/books/${entry.book_id}/spine`,
-        { method: 'PATCH', body: JSON.stringify(next) },
+        `/me/books/${entry.book_id}/${kind}`,
+        {
+          method: 'PATCH',
+          body: JSON.stringify(
+            isCover ? { image_path: next.image_path } : next,
+          ),
+        },
         ownerId,
       );
       if (alive.current) {
-        setAppearance(saved.spine ?? automaticSpine);
+        setAppearance(savedAppearance(saved));
         setFile(null);
-        setNotice('Lomo guardado.');
+        setNotice(savedNotice);
         onUpdated(saved);
       }
     } catch (cause) {
@@ -311,14 +332,23 @@ export default function SpineEditor({
     }
   }
   return (
-    <section className="spine-editor" aria-label="Personalizar lomo">
+    <section
+      className={`spine-editor ${isCover ? 'cover-editor' : ''}`}
+      aria-label={isCover ? 'Personalizar portada' : 'Personalizar lomo'}
+    >
       <div className="spine-editor-heading">
-        <h3>Tu libro, tal como lo recuerdas.</h3>
+        <h3>
+          {isCover
+            ? 'La portada de tu ejemplar.'
+            : 'Tu libro, tal como lo recuerdas.'}
+        </h3>
         <button
           type="button"
           className="icon-button"
           disabled={busy || checking}
-          aria-label="Cerrar personalización"
+          aria-label={
+            isCover ? 'Cerrar edición de portada' : 'Cerrar personalización'
+          }
           onClick={onClose}
         >
           <X size={18} />
@@ -329,16 +359,18 @@ export default function SpineEditor({
           {file && (
             <section
               className="spine-photo-workspace"
-              aria-label="Recortar foto del lomo"
+              aria-label={`Recortar foto ${isCover ? 'de la portada' : 'del lomo'}`}
             >
               <div className="spine-photo-heading">
                 <h4 ref={cropHeading} tabIndex={-1}>
-                  {cropping ? 'Encuadra solo el lomo' : 'Tu recorte está listo'}
+                  {cropping
+                    ? `Encuadra solo ${article}`
+                    : 'Tu recorte está listo'}
                 </h4>
                 <p>
                   {cropping
                     ? 'Arrastra el marco y sus bordes para dejar fuera la mano y el fondo. Verás el resultado al instante.'
-                    : 'Este es el lomo que se guardará. Puedes volver a recortarlo antes de guardar.'}
+                    : 'Esta es la foto que se guardará. Puedes volver a recortarla antes de guardar.'}
                 </p>
               </div>
               <div
@@ -351,6 +383,7 @@ export default function SpineEditor({
                       crop={crop}
                       onChange={changeCrop}
                       disabled={busy || checking || !!ambiguousPath}
+                      subject={noun}
                     />
                   ) : (
                     <div className="spine-crop-stage" role="status">
@@ -376,9 +409,13 @@ export default function SpineEditor({
                 <div className="spine-preview">
                   <canvas
                     ref={canvas}
-                    className="photo-spine"
-                    style={{ width: style.width, height: style.height }}
-                    aria-label="Vista previa del recorte del lomo"
+                    className={isCover ? 'photo-cover' : 'photo-spine'}
+                    style={
+                      isCover
+                        ? undefined
+                        : { width: style.width, height: style.height }
+                    }
+                    aria-label={`Vista previa del recorte ${isCover ? 'de la portada' : 'del lomo'}`}
                   />
                   <span>Así quedará</span>
                 </div>
@@ -490,7 +527,7 @@ export default function SpineEditor({
                       onClick={() => {
                         setCropping(false);
                         setNotice(
-                          'Recorte listo. Guarda el lomo cuando quieras.',
+                          `Recorte listo. Guarda ${article} cuando quieras.`,
                         );
                       }}
                     >
@@ -504,91 +541,112 @@ export default function SpineEditor({
           <div className={`spine-editor-layout ${file ? 'has-photo' : ''}`}>
             {!file && (
               <div className="spine-preview">
-                <Spine entry={preview} />
+                {isCover ? (
+                  <Cover
+                    book={{
+                      ...entry.book,
+                      cover_image_path: appearance.image_path,
+                    }}
+                  />
+                ) : (
+                  <Spine entry={preview} />
+                )}
                 <span>Vista previa</span>
               </div>
             )}
             <div className="spine-settings">
-              <label className="field">
-                Color del lomo
-                <input
-                  type="color"
-                  value={style.color}
-                  onChange={(e) =>
-                    setAppearance((old) => ({ ...old, color: e.target.value }))
-                  }
-                />
-              </label>
-              <div className="spine-swatches" aria-label="Colores del lomo">
-                {spineColors.map((color) => (
-                  <button
-                    type="button"
-                    key={color}
-                    aria-label={`Color ${color}`}
-                    aria-pressed={style.color === color}
-                    style={{ background: color }}
-                    onClick={() => setAppearance((old) => ({ ...old, color }))}
+              {!isCover && (
+                <>
+                  <label className="field">
+                    Color del lomo
+                    <input
+                      type="color"
+                      value={style.color}
+                      onChange={(e) =>
+                        setAppearance((old) => ({
+                          ...old,
+                          color: e.target.value,
+                        }))
+                      }
+                    />
+                  </label>
+                  <div className="spine-swatches" aria-label="Colores del lomo">
+                    {spineColors.map((color) => (
+                      <button
+                        type="button"
+                        key={color}
+                        aria-label={`Color ${color}`}
+                        aria-pressed={style.color === color}
+                        style={{ background: color }}
+                        onClick={() =>
+                          setAppearance((old) => ({ ...old, color }))
+                        }
+                      />
+                    ))}
+                  </div>
+                  <label className="field">
+                    Grosor <span>{style.width} px</span>
+                    <input
+                      type="range"
+                      min="28"
+                      max="64"
+                      value={style.width}
+                      onChange={(e) =>
+                        setAppearance((old) => ({
+                          ...old,
+                          width: Number(e.target.value),
+                        }))
+                      }
+                    />
+                  </label>
+                  <label className="field">
+                    Altura <span>{style.height} px</span>
+                    <input
+                      type="range"
+                      min="160"
+                      max="240"
+                      value={style.height}
+                      onChange={(e) =>
+                        setAppearance((old) => ({
+                          ...old,
+                          height: Number(e.target.value),
+                        }))
+                      }
+                    />
+                  </label>
+                </>
+              )}
+              <div className="book-photo-inputs">
+                <label className="button secondary spine-upload">
+                  <ImagePlus size={16} />{' '}
+                  {`Elegir foto ${isCover ? 'de la portada' : 'del lomo'}`}
+                  <input
+                    ref={input}
+                    type="file"
+                    accept="image/jpeg,image/png,image/webp"
+                    aria-label={`Foto ${isCover ? 'de la portada' : 'del lomo'}`}
+                    onChange={(e) => {
+                      selectFile(e.target.files?.[0]);
+                      e.target.value = '';
+                    }}
                   />
-                ))}
+                </label>
+                <label className="button secondary spine-upload spine-camera">
+                  <Camera size={16} /> Hacer foto
+                  <input
+                    type="file"
+                    accept="image/jpeg,image/png,image/webp"
+                    capture="environment"
+                    aria-label={`Hacer foto ${isCover ? 'de la portada' : 'del lomo'}`}
+                    onChange={(e) => {
+                      selectFile(e.target.files?.[0]);
+                      e.target.value = '';
+                    }}
+                  />
+                </label>
               </div>
-              <label className="field">
-                Grosor <span>{style.width} px</span>
-                <input
-                  type="range"
-                  min="28"
-                  max="64"
-                  value={style.width}
-                  onChange={(e) =>
-                    setAppearance((old) => ({
-                      ...old,
-                      width: Number(e.target.value),
-                    }))
-                  }
-                />
-              </label>
-              <label className="field">
-                Altura <span>{style.height} px</span>
-                <input
-                  type="range"
-                  min="160"
-                  max="240"
-                  value={style.height}
-                  onChange={(e) =>
-                    setAppearance((old) => ({
-                      ...old,
-                      height: Number(e.target.value),
-                    }))
-                  }
-                />
-              </label>
-              <label className="button secondary spine-upload">
-                <ImagePlus size={16} /> Elegir foto del lomo
-                <input
-                  ref={input}
-                  type="file"
-                  accept="image/jpeg,image/png,image/webp"
-                  aria-label="Foto del lomo"
-                  onChange={(e) => {
-                    selectFile(e.target.files?.[0]);
-                    e.target.value = '';
-                  }}
-                />
-              </label>
-              <label className="button secondary spine-upload spine-camera">
-                <Camera size={16} /> Hacer foto
-                <input
-                  type="file"
-                  accept="image/jpeg,image/png,image/webp"
-                  capture="environment"
-                  aria-label="Hacer foto del lomo"
-                  onChange={(e) => {
-                    selectFile(e.target.files?.[0]);
-                    e.target.value = '';
-                  }}
-                />
-              </label>
               <p className="small-note">
-                JPEG, PNG o WebP · hasta 5 MB. Encuadra solo el lomo de tu
+                JPEG, PNG o WebP · hasta 5 MB. Encuadra solo {article} de tu
                 ejemplar.
               </p>
               {(file || appearance.image_path) && (
@@ -616,14 +674,17 @@ export default function SpineEditor({
                 setNotice('');
               }}
             >
-              <RotateCcw size={14} /> Restaurar aspecto automático
+              <RotateCcw size={14} />{' '}
+              {isCover
+                ? 'Restaurar portada original'
+                : 'Restaurar aspecto automático'}
             </button>
             <button
               className="button primary"
               disabled={busy || (!!file && (!source || !crop || cropping))}
             >
               <Save size={15} />
-              {busy ? 'Guardando…' : 'Guardar lomo'}
+              {busy ? 'Guardando…' : `Guardar ${noun}`}
             </button>
           </div>
         </fieldset>
@@ -651,7 +712,7 @@ export default function SpineEditor({
           </button>
         )}
         <p className="spine-save-status" role="status">
-          {busy ? 'Guardando tu lomo…' : notice}
+          {busy ? `Guardando tu ${noun}…` : notice}
         </p>
       </form>
     </section>

@@ -19,15 +19,17 @@ import {
 } from './library.dto.js';
 import { BookshelfDto, SpineDto } from './bookshelf.dto.js';
 import { PersonalBookMetadataDto } from './book-metadata.dto.js';
+import { CoverDto } from './cover.dto.js';
 
 const LIBRARY_SELECT =
-  'book_id, status, added_at, updated_at, metadata, spine_color, spine_width, spine_height, spine_image_path, books(*, book_authors(authors(id, name)))';
+  'book_id, status, added_at, updated_at, metadata, cover_image_path, spine_color, spine_width, spine_height, spine_image_path, books(*, book_authors(authors(id, name)))';
 type Identity = Pick<AuthRequest, 'user' | 'accessToken'>;
 
 function libraryBook(row: any) {
   const {
     books,
     metadata = {},
+    cover_image_path,
     spine_color,
     spine_width,
     spine_height,
@@ -43,11 +45,12 @@ function libraryBook(row: any) {
       height: spine_height ?? null,
       image_path: spine_image_path ?? null,
     },
-    customized: Object.keys(metadata).length > 0,
+    customized: Object.keys(metadata).length > 0 || !!cover_image_path,
     book: {
       ...book,
       authors: book_authors.map((link: any) => link.authors),
       ...metadata,
+      cover_image_path: cover_image_path ?? null,
     },
   };
 }
@@ -182,6 +185,7 @@ export class LibraryService {
     bookId: number,
     input: PersonalBookMetadataDto | null,
   ) {
+    const previous = input === null ? await this.get(identity, bookId) : null;
     const { data, error } = await this.clients
       .create(identity.accessToken)
       .rpc('update_personal_book_metadata', {
@@ -190,7 +194,14 @@ export class LibraryService {
       });
     if (error) this.fail(error);
     if (!data) throw new NotFoundException('Book not found in your library');
-    return this.get(identity, bookId);
+    const next = await this.get(identity, bookId);
+    if (previous?.book.cover_image_path && !next.book.cover_image_path)
+      await this.removeBookPhoto(
+        identity,
+        previous.book.cover_image_path,
+        'book-covers',
+      );
+    return next;
   }
 
   async saveBookshelf(identity: Identity, input: BookshelfDto) {
@@ -207,18 +218,13 @@ export class LibraryService {
   async updateSpine(identity: Identity, bookId: number, input: SpineDto) {
     const previous = await this.get(identity, bookId);
     const client = this.clients.create(identity.accessToken);
-    if (input.image_path) {
-      const prefix = `${identity.user.id}/${bookId}/`;
-      if (!input.image_path.startsWith(prefix))
-        throw new BadRequestException('Invalid spine image owner');
-      const filename = input.image_path.slice(prefix.length);
-      const { data, error } = await client.storage
-        .from('book-spines')
-        .list(prefix.slice(0, -1), { search: filename });
-      if (error) throw new BadRequestException('Unable to verify spine image');
-      if (!data?.some((file) => file.name === filename))
-        throw new BadRequestException('Spine image not found');
-    }
+    if (input.image_path)
+      await this.verifyBookPhoto(
+        identity,
+        bookId,
+        input.image_path,
+        'book-spines',
+      );
     const fields: Record<string, unknown> = {
       updated_at: new Date().toISOString(),
     };
@@ -239,20 +245,82 @@ export class LibraryService {
       previous.spine.image_path &&
       previous.spine.image_path !== next.spine.image_path
     ) {
-      await this.removeSpineImage(identity, previous.spine.image_path);
+      await this.removeBookPhoto(
+        identity,
+        previous.spine.image_path,
+        'book-spines',
+      );
     }
     return next;
   }
 
-  private async removeSpineImage(identity: Identity, path: string) {
+  async updateCover(identity: Identity, bookId: number, input: CoverDto) {
+    const previous = await this.get(identity, bookId);
+    if (input.image_path)
+      await this.verifyBookPhoto(
+        identity,
+        bookId,
+        input.image_path,
+        'book-covers',
+      );
+    const { data, error } = await this.clients
+      .create(identity.accessToken)
+      .from('user_books')
+      .update({
+        cover_image_path: input.image_path,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('user_id', identity.user.id)
+      .eq('book_id', bookId)
+      .select(LIBRARY_SELECT)
+      .maybeSingle();
+    if (error) this.fail(error);
+    if (!data) throw new NotFoundException('Book not found in your library');
+    const next = libraryBook(data);
+    if (
+      previous.book.cover_image_path &&
+      previous.book.cover_image_path !== next.book.cover_image_path
+    )
+      await this.removeBookPhoto(
+        identity,
+        previous.book.cover_image_path,
+        'book-covers',
+      );
+    return next;
+  }
+
+  private async verifyBookPhoto(
+    identity: Identity,
+    bookId: number,
+    path: string,
+    bucket: string,
+  ) {
+    const prefix = `${identity.user.id}/${bookId}/`;
+    if (!path.startsWith(prefix))
+      throw new BadRequestException('Invalid photo owner');
+    const filename = path.slice(prefix.length);
+    const { data, error } = await this.clients
+      .create(identity.accessToken)
+      .storage.from(bucket)
+      .list(prefix.slice(0, -1), { search: filename });
+    if (error) throw new BadRequestException('Unable to verify book photo');
+    if (!data?.some((file) => file.name === filename))
+      throw new BadRequestException('Book photo not found');
+  }
+
+  private async removeBookPhoto(
+    identity: Identity,
+    path: string,
+    bucket: string,
+  ) {
     try {
       const { error } = await this.clients
         .create(identity.accessToken)
-        .storage.from('book-spines')
+        .storage.from(bucket)
         .remove([path]);
-      if (error) this.logger.warn('Unable to clean up a spine image');
+      if (error) this.logger.warn('Unable to clean up a book photo');
     } catch {
-      this.logger.warn('Unable to clean up a spine image');
+      this.logger.warn('Unable to clean up a book photo');
     }
   }
 
@@ -263,11 +331,21 @@ export class LibraryService {
       .delete()
       .eq('user_id', identity.user.id)
       .eq('book_id', bookId)
-      .select('book_id, spine_image_path')
+      .select('book_id, spine_image_path, cover_image_path')
       .maybeSingle();
     if (error) this.fail(error);
     if (!data) throw new NotFoundException('Book not found in your library');
     if (data.spine_image_path)
-      await this.removeSpineImage(identity, data.spine_image_path);
+      await this.removeBookPhoto(
+        identity,
+        data.spine_image_path,
+        'book-spines',
+      );
+    if (data.cover_image_path)
+      await this.removeBookPhoto(
+        identity,
+        data.cover_image_path,
+        'book-covers',
+      );
   }
 }

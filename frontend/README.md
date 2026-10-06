@@ -86,12 +86,15 @@ La URL y la clave pública usan los mismos nombres `VITE_` en frontend y backend
 ## Edición de mis libros
 
 Abre un libro de tu biblioteca y pulsa **Editar mi libro**. Puedes corregir el
-título, añadir o quitar autores, cambiar la portada mediante un enlace HTTP/HTTPS,
-y editar editorial, fecha de publicación, páginas, idioma e ISBN. Guardar solo
+título, añadir o quitar autores y editar editorial, fecha de publicación, páginas,
+idioma e ISBN. Dentro del editor, **Portada** permite elegir una foto o usar la
+cámara, recortar, girar y enderezar la imagen antes de guardarla. **Personalizar
+lomo** utiliza el mismo editor de fotos con sus ajustes de color y dimensiones.
+Puedes cambiar de sección sin perder el borrador. Guardar solo
 cambia tu ficha personal. Cancelar descarta el borrador y, si falla el guardado,
 puedes reintentarlo sin perder lo escrito.
 
 La opción **Restaurar datos del catálogo** pide confirmación y recupera la ficha
 original sin cambiar el estado de lectura ni el lomo. Requiere la migración
-`004_personal_book_metadata.sql` antes de desplegar frontend y API; consulta
+`004_personal_book_metadata.sql` y `005_cover_photos.sql` antes de desplegar frontend y API; consulta
 [`src/auth/README.md`](../src/auth/README.md).

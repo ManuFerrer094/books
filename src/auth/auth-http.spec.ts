@@ -33,6 +33,7 @@ describe('Authenticated HTTP routes', () => {
     saveBookshelf: jest.fn<any>(),
     updateSpine: jest.fn<any>(),
     updateMetadata: jest.fn<any>(),
+    updateCover: jest.fn<any>(),
   };
   const books = {
     getBooks: jest.fn<any>(),
@@ -144,6 +145,42 @@ describe('Authenticated HTTP routes', () => {
       .set('Authorization', 'Bearer valid-a')
       .send({})
       .expect(400);
+  });
+  it('allows private cover association and restoration only with authentication', async () => {
+    for (const image_path of [
+      '11111111-1111-4111-8111-111111111111/1/33333333-3333-4333-8333-333333333333.jpg',
+      null,
+    ]) {
+      await request(app.getHttpServer())
+        .patch('/me/books/1/cover')
+        .set('Authorization', 'Bearer valid-a')
+        .send({ image_path })
+        .expect(200);
+      expect(library.updateCover).toHaveBeenLastCalledWith(
+        expect.objectContaining({ accessToken: 'valid-a' }),
+        1,
+        expect.objectContaining({ image_path }),
+      );
+    }
+    await request(app.getHttpServer())
+      .patch('/me/books/1/cover')
+      .send({ image_path: null })
+      .expect(401);
+    expect(books.updateBook).not.toHaveBeenCalled();
+  });
+  it.each([
+    {},
+    { image_path: 'https://example.com/photo.jpg' },
+    { image_path: '../photo.jpg' },
+    { image_path: null, user_id: 'victim' },
+    { cover_url: 'https://example.com/photo.jpg' },
+  ])('rejects invalid cover data %j', async (body) => {
+    await request(app.getHttpServer())
+      .patch('/me/books/1/cover')
+      .set('Authorization', 'Bearer valid-a')
+      .send(body)
+      .expect(400);
+    expect(library.updateCover).not.toHaveBeenCalled();
   });
   it('allows personal metadata changes and reset without allowing catalog writes', async () => {
     const body = {
