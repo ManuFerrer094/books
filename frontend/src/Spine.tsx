@@ -1,7 +1,7 @@
 import { useEffect, useState, type CSSProperties } from 'react';
 import { spineStyle, textColor } from './bookshelf-layout';
 import type { LibraryBook } from './types';
-import { supabase } from './supabase';
+import { useBookPhoto } from './useBookPhoto';
 
 export default function Spine({
   entry,
@@ -10,35 +10,13 @@ export default function Spine({
   entry: LibraryBook;
   imageUrl?: string | null;
 }) {
-  const [signed, setSigned] = useState<string | null>(null);
   const [failed, setFailed] = useState(false);
   const path = entry.spine?.image_path;
-  useEffect(() => {
-    let active = true;
-    setSigned(null);
-    setFailed(false);
-    async function refresh() {
-      if (!path || !supabase || imageUrl !== undefined) return;
-      try {
-        const { data, error } = await supabase.storage
-          .from('book-spines')
-          .createSignedUrl(path, 3600);
-        if (active) {
-          setSigned(error ? null : (data?.signedUrl ?? null));
-          setFailed(false);
-        }
-      } catch {
-        if (active) setSigned(null);
-      }
-    }
-    void refresh();
-    const timer = window.setInterval(() => void refresh(), 50 * 60 * 1000);
-    return () => {
-      active = false;
-      window.clearInterval(timer);
-    };
-  }, [path, imageUrl]);
-  useEffect(() => setFailed(false), [imageUrl]);
+  const signed = useBookPhoto(
+    'book-spines',
+    imageUrl === undefined ? path : null,
+  );
+  useEffect(() => setFailed(false), [path, signed, imageUrl]);
   const style = spineStyle(entry);
   const photo = imageUrl !== undefined ? imageUrl : signed;
   return (

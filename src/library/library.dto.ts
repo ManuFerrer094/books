@@ -18,6 +18,11 @@ class PersonalAuthorDto extends CreateAuthorDto {
 }
 
 class PersonalBookDto extends OmitType(BookDto, ['authors'] as const) {
+  @ApiPropertyOptional({
+    nullable: true,
+    description: 'Foto privada en book-covers.',
+  })
+  cover_image_path?: string | null;
   @ApiProperty({ type: [PersonalAuthorDto] })
   authors: PersonalAuthorDto[];
 }

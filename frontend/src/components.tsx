@@ -1,6 +1,7 @@
 import { useEffect, useId, useRef, useState, type ReactNode } from 'react';
 import { BookOpen, X } from 'lucide-react';
 import type { Book, ReadingStatus } from './types';
+import { useBookPhoto } from './useBookPhoto';
 
 export function Brand() {
   return (
@@ -75,14 +76,16 @@ export function Cover({
   large?: boolean;
 }) {
   const [failed, setFailed] = useState(false);
-  useEffect(() => setFailed(false), [book.cover_url]);
+  const signed = useBookPhoto('book-covers', book.cover_image_path);
+  const cover = book.cover_image_path ? signed : book.cover_url;
+  useEffect(() => setFailed(false), [cover]);
   return (
     <div
       className={`cover cover-${Math.abs(book.id) % 5} ${large ? 'cover-large' : ''}`}
     >
-      {book.cover_url && !failed ? (
+      {cover && !failed ? (
         <img
-          src={book.cover_url}
+          src={cover}
           alt={`Portada de ${book.title}`}
           loading="lazy"
           onError={() => setFailed(true)}

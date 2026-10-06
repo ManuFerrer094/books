@@ -47,7 +47,9 @@ después de las migraciones 001–003. Añade `user_books.metadata` y la funció
 Puede ejecutarse de nuevo y no requiere nuevas variables de entorno.
 
 Desde la ficha del frontend, **Editar mi libro** permite cambiar título, autores,
-URL de portada, editorial, fecha de publicación, páginas, idioma e ISBN.
+editorial, fecha de publicación, páginas, idioma e ISBN.
+Dentro del editor se encuentran **Portada**, para subir o hacer una foto con recorte,
+giro y enderezado, y **Personalizar lomo**, que comparte el mismo editor de fotos.
 Los datos personalizados se muestran también en las búsquedas y la estantería.
 **Restaurar datos del catálogo**, con confirmación, retira todos los cambios de la
 ficha y mantiene el estado de lectura y la personalización del lomo.
@@ -55,7 +57,8 @@ ficha y mantiene el estado de lectura y la personalización del lomo.
 - `PATCH /me/books/:bookId/metadata` recibe los campos que se quieren cambiar.
   Los omitidos conservan su valor; `null` vacía un campo opcional y `authors: []`
   elimina los autores de la ficha personal. El título no puede quedar vacío.
-  La portada acepta un enlace HTTP/HTTPS de hasta 1000 caracteres.
+  El campo `cover_url` se mantiene en la API para compatibilidad con fichas existentes;
+  el frontend edita las portadas mediante fotos.
 - `DELETE /me/books/:bookId/metadata` restaura los datos del catálogo y devuelve
   la entrada actualizada, sin retirar el libro de la biblioteca.
 - Las respuestas de biblioteca incluyen `customized` y `book` con los datos
@@ -75,6 +78,30 @@ Ejecuta `psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f test/database/personal-book-
 en una base de pruebas con las migraciones aplicadas.
 
 ## Probar desde Swagger
+
+### Fotos privadas de portada
+
+Aplica `src/books/database/migrations/005_cover_photos.sql` después de 001–004,
+antes de desplegar esta versión. Añade `user_books.cover_image_path` y el bucket
+privado `book-covers` con las mismas restricciones que las fotos de los lomos:
+JPEG de hasta 5 MB, subida solo para un libro de la biblioteca propia, lectura y
+borrado solo del propietario. El navegador acepta JPEG, PNG y WebP y exporta
+únicamente el recorte confirmado como JPEG.
+
+`PATCH /me/books/:bookId/cover` acepta `{ "image_path": "<user_id>/<book_id>/<uuid>.jpg" }`.
+La API verifica propietario, libro y existencia del archivo. `image_path: null`
+recupera la portada anterior a la foto. `book.cover_image_path` guarda la ruta
+privada, que tiene prioridad sobre `book.cover_url` al mostrar la portada. Las
+URLs firmadas duran una hora y se renuevan a los 50 minutos. Una imagen inaccesible
+muestra la portada de texto.
+
+Cambiar o quitar la foto y retirar el libro limpia el archivo anterior después
+de guardar. Si se pierde una respuesta, el navegador consulta primero la ficha
+para no borrar una foto que ya esté guardada. La restauración de los datos del
+catálogo elimina también la foto de portada y conserva el lomo y estado de lectura.
+
+`test/database/cover-photos.sql` comprueba las restricciones, permisos de Storage
+y aislamiento entre dos usuarios en PostgreSQL, revirtiendo sus datos al terminar.
 
 ### Registrar y entrar
 

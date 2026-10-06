@@ -37,11 +37,13 @@ export default function SpinePhotoCropper({
   crop,
   onChange,
   disabled,
+  subject = 'lomo',
 }: {
   source: HTMLCanvasElement;
   crop: CropRect;
   onChange: (crop: CropRect) => void;
   disabled: boolean;
+  subject?: 'lomo' | 'portada';
 }) {
   const stage = useRef<HTMLDivElement>(null);
   const photo = useRef<HTMLCanvasElement>(null);
@@ -161,7 +163,7 @@ export default function SpinePhotoCropper({
     <div
       className="spine-crop-stage"
       ref={stage}
-      aria-label="Foto completa para recortar el lomo"
+      aria-label={`Foto completa para recortar ${subject === 'lomo' ? 'el lomo' : 'la portada'}`}
     >
       <canvas
         ref={photo}
@@ -177,7 +179,7 @@ export default function SpinePhotoCropper({
       <div
         className="spine-crop-frame"
         role="group"
-        aria-label="Área de la foto que se usará como lomo"
+        aria-label={`Área de la foto que se usará como ${subject}`}
         data-crop-x={crop.x}
         data-crop-y={crop.y}
         data-crop-width={crop.width}

@@ -59,8 +59,7 @@ describe('edición de mi libro', () => {
     await user.click(screen.getByRole('button', { name: 'Añadir autor' }));
     await user.click(screen.getByLabelText('Autor 1'));
     await user.paste('Mi autor');
-    await user.click(screen.getByLabelText('URL de la portada'));
-    await user.paste('https://example.com/cover.jpg');
+    expect(screen.queryByLabelText('URL de la portada')).toBeNull();
     await user.clear(screen.getByLabelText('Editorial'));
     await user.click(screen.getByRole('button', { name: 'Guardar cambios' }));
     expect(request).toHaveBeenCalledExactlyOnceWith(
@@ -71,7 +70,6 @@ describe('edición de mi libro', () => {
           title: 'Mi título',
           authors: [{ name: 'Mi autor' }],
           publisher: null,
-          cover_url: 'https://example.com/cover.jpg',
         }),
       },
       'user-a',

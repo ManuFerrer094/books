@@ -34,6 +34,7 @@ import {
 import { LibraryService } from './library.service.js';
 import { SpineDto } from './bookshelf.dto.js';
 import { PersonalBookMetadataDto } from './book-metadata.dto.js';
+import { CoverDto } from './cover.dto.js';
 
 @Controller('me/books')
 @ApiTags('library')
@@ -125,6 +126,18 @@ export class LibraryController {
     @Body() input: PersonalBookMetadataDto,
   ) {
     return this.library.updateMetadata(request, bookId, input);
+  }
+
+  @Patch(':bookId/cover')
+  @Header('Cache-Control', 'no-store')
+  @ApiOperation({ summary: 'Cambiar la foto de portada de mi ejemplar' })
+  @ApiOkResponse({ type: LibraryBookDto })
+  updateCover(
+    @Req() request: AuthRequest,
+    @Param('bookId', ParseIntPipe) bookId: number,
+    @Body() input: CoverDto,
+  ) {
+    return this.library.updateCover(request, bookId, input);
   }
 
   @Delete(':bookId/metadata')
