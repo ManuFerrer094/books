@@ -89,6 +89,10 @@ También se mantiene el desarrollo independiente habitual: `npm run start:dev` e
 
 ## Compilación y pruebas
 
+Para el catálogo y la lista de deseos, aplica **antes de desplegar API y frontend** la [migración 007](src/books/database/migrations/007_wishlist_catalog.sql), después de 001–006. Crea `user_wishlist` con acceso privado por usuario y `browse_catalog` con búsqueda y paginación. El catálogo devuelve únicamente fichas y autores compartidos; no une bibliotecas, préstamos, anotaciones, valoraciones ni fotos personales. Guardar o quitar deseos no modifica `user_books`. No requiere nuevas variables.
+
+La [prueba SQL de catálogo y deseos](test/database/wishlist-catalog.sql) comprueba privacidad entre dos lectores, permisos anónimos, duplicados, búsqueda, paginación y eliminación independiente. Ejecútala en una base de pruebas con las migraciones aplicadas: `psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f test/database/wishlist-catalog.sql`. Sus datos se revierten al terminar.
+
 Para los préstamos, las anotaciones y las estrellas, aplica **antes de desplegar API y frontend** la [migración 006](src/books/database/migrations/006_book_personal_details.sql), después de 001–005. Añade `is_lent`, `lent_to`, `notes` y `rating` a `user_books`, con límites y las políticas RLS existentes. Los libros actuales conservan sus estados de lectura; empiezan sin préstamo, anotaciones ni valoración. No requiere nuevas variables.
 
 La [prueba SQL de datos personales](test/database/book-personal-details.sql) comprueba valores, privacidad entre dos lectores y conservación al restaurar el catálogo. Ejecútala en una base de pruebas con las migraciones aplicadas: `psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f test/database/book-personal-details.sql`. Sus datos se revierten al terminar.

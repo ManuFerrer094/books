@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
-import type { Book, LibraryBook } from '../src/types';
+import type { Book, LibraryBook, WishlistBook } from '../src/types';
 
 const fixtures = [
   ['El infinito en un junco', 'Irene Vallejo', 'pending'],
@@ -46,9 +46,31 @@ async function setup(
     failMetadataOnce?: boolean;
     failCoverOnce?: boolean;
     failDetailsOnce?: boolean;
+    ratings?: boolean;
+    failWishOnce?: boolean;
+    failWishlistOnce?: boolean;
+    failCatalogOnce?: boolean;
   } = {},
 ) {
   let books = options.empty ? [] : fixtureBooks();
+  if (options.ratings) {
+    books[0].rating = 5;
+    books[1].rating = 0;
+  }
+  const platformBooks = [
+    ...fixtureBooks().map((entry) => ({ ...entry.book })),
+    ...Array.from({ length: 18 }, (_, i) => ({
+      ...fixtureBooks()[0].book,
+      id: 300 + i,
+      title: i === 0 ? 'Árboles de otro lector' : `Otra historia ${i}`,
+      authors: [{ id: 99, name: 'María del Bosque' }],
+      isbn: i === 0 ? '9788484454892' : null,
+    })),
+  ].sort((a, b) => a.title.localeCompare(b.title, 'es') || a.id - b.id);
+  let wishlist: WishlistBook[] = [];
+  let failWish = options.failWishOnce;
+  let failWishlist = options.failWishlistOnce;
+  let failCatalog = options.failCatalogOnce;
   if (options.many)
     for (let i = 9; i <= 24; i++)
       books.push({
@@ -160,6 +182,67 @@ async function setup(
         : null;
     if (path === '/me/books' && method === 'GET')
       return route.fulfill({ json: books });
+    if (path === '/catalog' && method === 'GET') {
+      if (failCatalog) {
+        failCatalog = false;
+        return route.fulfill({ status: 500, json: {} });
+      }
+      const params = new URL(request.url()).searchParams;
+      const normalize = (text: string) =>
+        text
+          .normalize('NFD')
+          .replace(/[\u0300-\u036f]/g, '')
+          .toLowerCase();
+      const term = normalize(params.get('query') ?? '');
+      const matching = platformBooks.filter((book) =>
+        normalize(
+          `${book.title} ${book.authors.map((author) => author.name).join(' ')} ${book.isbn ?? ''}`,
+        ).includes(term),
+      );
+      const pageNumber = Number(params.get('page') ?? 1),
+        pageSize = Number(params.get('page_size') ?? 24);
+      return route.fulfill({
+        json: {
+          books: matching.slice(
+            (pageNumber - 1) * pageSize,
+            pageNumber * pageSize,
+          ),
+          total: matching.length,
+          page: pageNumber,
+          page_size: pageSize,
+        },
+      });
+    }
+    if (path === '/me/wishlist' && method === 'GET') {
+      if (failWishlist) {
+        failWishlist = false;
+        return route.fulfill({ status: 500, json: {} });
+      }
+      return route.fulfill({ json: wishlist });
+    }
+    if (
+      (path === '/me/wishlist' && method === 'POST') ||
+      (path.startsWith('/me/wishlist/') && method === 'DELETE')
+    ) {
+      if (failWish) {
+        failWish = false;
+        return route.fulfill({ status: 500, json: {} });
+      }
+      const bookId =
+        method === 'POST' ? body.book_id : Number(path.split('/').at(-1));
+      if (method === 'DELETE') {
+        wishlist = wishlist.filter((entry) => entry.book_id !== bookId);
+        return route.fulfill({ status: 204 });
+      }
+      const book = platformBooks.find((book) => book.id === bookId);
+      if (!book) return route.fulfill({ status: 404, json: {} });
+      let entry = wishlist.find((entry) => entry.book_id === bookId);
+      if (!entry) {
+        entry = { book_id: bookId, added_at: '2026-10-06T10:00:00Z', book };
+        wishlist.push(entry);
+      }
+      return route.fulfill({ json: entry });
+    }
     if (path === '/me/bookshelf' && method === 'GET') {
       const remaining = new Set(books.map((entry) => entry.book_id));
       const saved = layout.book_ids.filter((id) => {
@@ -316,6 +399,7 @@ async function setup(
     getCreates: () => creates,
     getLayout: () => layout,
     getBooks: () => books,
+    getWishlist: () => wishlist,
     getDeletedPhotos: () => deletedPhotos,
     getUploadedPhotos: () => uploadedPhotos,
   };
@@ -384,6 +468,217 @@ test('biblioteca: buscar, cambiar de estante, conservar la sesión y quitar con 
   await page.getByRole('button', { name: 'Cerrar sesión' }).click();
   await expect(
     page.getByRole('button', { name: 'Entrar en mi biblioteca' }),
+  ).toBeVisible();
+});
+
+test('catálogo y deseos: búsqueda, privacidad, paginación, reintentos y persistencia', async ({
+  page,
+}, testInfo) => {
+  test.setTimeout(60000);
+  const state = await setup(page, { failWishOnce: true });
+  await login(page);
+  const shelves = page.getByRole('navigation', {
+    name: 'Estantes de tu biblioteca',
+  });
+  await expect(shelves.getByRole('button').last()).toHaveText(
+    /Lista de deseos\s*0/,
+  );
+  await page
+    .getByRole('button', { name: 'Explorar catálogo', exact: true })
+    .click();
+  await expect(
+    page.getByRole('heading', { name: 'Catálogo de la plataforma' }),
+  ).toBeVisible();
+  await expect(page.getByRole('button', { name: /^Ver / })).toHaveCount(24);
+  await expect(
+    page.getByText('26 libros en el catálogo', { exact: true }),
+  ).toBeVisible();
+  await page.getByRole('button', { name: 'Siguiente', exact: true }).click();
+  await expect(page.getByRole('button', { name: /^Ver / })).toHaveCount(2);
+  await expect(
+    page.getByRole('button', { name: 'Siguiente', exact: true }),
+  ).toBeDisabled();
+  await page.getByLabel('Buscar en el catálogo').fill('arboles');
+  await page.getByRole('button', { name: 'Buscar', exact: true }).click();
+  await expect(page.getByRole('button', { name: /^Ver / })).toHaveCount(1);
+  await page
+    .getByRole('button', { name: 'Ver Árboles de otro lector', exact: true })
+    .click();
+  const detail = page.getByRole('dialog');
+  await expect(
+    detail
+      .locator('.book-details-content')
+      .getByText('María del Bosque', { exact: true }),
+  ).toBeVisible();
+  await expect(
+    detail.getByText('9788484454892', { exact: true }),
+  ).toBeVisible();
+  await expect(
+    detail.getByLabel('Estado de lectura', { exact: true }),
+  ).toHaveCount(0);
+  await expect(detail.getByLabel('Mis anotaciones')).toHaveCount(0);
+  await expect(detail.getByLabel('Libro prestado')).toHaveCount(0);
+  await expect(detail.getByRole('radio')).toHaveCount(0);
+  await expect(
+    detail.getByText(/lectora@example.com|Propietario|Pertenece a/),
+  ).toHaveCount(0);
+  await detail
+    .getByRole('button', {
+      name: 'Guardar deseo: Árboles de otro lector',
+      exact: true,
+    })
+    .click();
+  await expect(detail.getByRole('alert')).toBeVisible();
+  expect(state.getWishlist()).toHaveLength(0);
+  await detail
+    .getByRole('button', {
+      name: 'Guardar deseo: Árboles de otro lector',
+      exact: true,
+    })
+    .click();
+  await expect(
+    detail.getByRole('button', {
+      name: 'Quitar deseo: Árboles de otro lector',
+      exact: true,
+    }),
+  ).toBeEnabled();
+  expect(state.getWishlist()).toHaveLength(1);
+  expect(state.getBooks()).toHaveLength(8);
+  await detail.getByRole('button', { name: 'Cerrar', exact: true }).click();
+  await page.getByLabel('Buscar en el catálogo').fill('maria');
+  await page.getByRole('button', { name: 'Buscar', exact: true }).click();
+  await expect(page.getByRole('button', { name: /^Ver / })).toHaveCount(18);
+  await shelves.getByRole('button', { name: /^Lista de deseos/ }).click();
+  await expect(page.getByRole('button', { name: /^Ver / })).toHaveCount(1);
+  await page.screenshot({
+    path: testInfo.outputPath('lista-de-deseos.png'),
+    fullPage: true,
+  });
+  expect(
+    await page.evaluate(() => document.documentElement.scrollWidth),
+  ).toBeLessThanOrEqual(page.viewportSize()!.width);
+  await page.reload({ waitUntil: 'domcontentloaded' });
+  await shelves.getByRole('button', { name: /^Lista de deseos/ }).click();
+  await expect(
+    page.getByRole('button', {
+      name: 'Ver Árboles de otro lector',
+      exact: true,
+    }),
+  ).toBeVisible();
+  await page.getByLabel('Buscar en la lista de deseos').fill('9788484454892');
+  await page.getByRole('button', { name: 'Buscar', exact: true }).click();
+  await expect(page.getByRole('button', { name: /^Ver / })).toHaveCount(1);
+  await page
+    .getByRole('button', {
+      name: 'Quitar deseo: Árboles de otro lector',
+      exact: true,
+    })
+    .click();
+  await expect(page.getByRole('button', { name: /^Ver / })).toHaveCount(0);
+  expect(state.getWishlist()).toHaveLength(0);
+  await shelves.getByRole('button', { name: /^Todos mis libros/ }).click();
+  await expect(page.getByRole('button', { name: /^Ver / })).toHaveCount(8);
+});
+
+test('catálogo y deseos: recupera errores al cargar sin añadir deseos a ciegas', async ({
+  page,
+}) => {
+  test.setTimeout(60000);
+  await setup(page, { failWishlistOnce: true, failCatalogOnce: true });
+  await login(page);
+  await page
+    .getByRole('button', { name: 'Explorar catálogo', exact: true })
+    .click();
+  await expect(
+    page.getByText('No podemos abrir el catálogo.', { exact: true }),
+  ).toBeVisible();
+  await page
+    .getByRole('button', { name: 'Volver a intentar', exact: true })
+    .click();
+  await expect(
+    page.getByRole('button', { name: /^Guardar deseo: / }).first(),
+  ).toBeDisabled();
+  await page
+    .getByRole('button', { name: 'Recargar lista de deseos', exact: true })
+    .click();
+  await expect(
+    page.getByRole('button', { name: /^Guardar deseo: / }).first(),
+  ).toBeEnabled();
+});
+
+test('valoraciones: chips, acceso a las estrellas y orden en portadas y estantería', async ({
+  page,
+}, testInfo) => {
+  test.setTimeout(60000);
+  await setup(page, { ratings: true });
+  await login(page);
+  await expect(
+    page.getByRole('button', {
+      name: 'Cambiar valoración de El principito: 0 de 5 estrellas',
+      exact: true,
+    }),
+  ).toHaveText('0/5');
+  await expect(
+    page.getByRole('button', { name: 'Valorar La librería', exact: true }),
+  ).toHaveText('Valorar');
+  await page.getByLabel('Ordenar libros').selectOption('rating-desc');
+  await expect(
+    page.getByRole('button', { name: /^Ver / }).first(),
+  ).toHaveAccessibleName('Ver El infinito en un junco');
+  await page.getByLabel('Ordenar libros').selectOption('rating-asc');
+  await expect(
+    page.getByRole('button', { name: /^Ver / }).first(),
+  ).toHaveAccessibleName('Ver El principito');
+  await page
+    .getByRole('button', { name: 'Valorar La librería', exact: true })
+    .click();
+  const stars = page.getByRole('radio', { name: '0 estrellas', exact: true });
+  await expect(stars).toBeFocused();
+  await page.getByRole('radio', { name: '4 estrellas', exact: true }).check();
+  await page
+    .getByRole('button', { name: 'Guardar datos personales', exact: true })
+    .click();
+  await expect(
+    page
+      .getByRole('form', { name: 'Datos personales del libro' })
+      .getByRole('status'),
+  ).toContainText('se han guardado');
+  await page.getByRole('button', { name: 'Cerrar', exact: true }).click();
+  await expect(
+    page.getByRole('button', {
+      name: 'Cambiar valoración de La librería: 4 de 5 estrellas',
+      exact: true,
+    }),
+  ).toHaveText('4/5');
+  await page.getByLabel('Ordenar libros').selectOption('rating-desc');
+  expect(
+    (await page.getByRole('button', { name: /^Ver / }).allTextContents())
+      .length,
+  ).toBe(8);
+  await expect(
+    page.getByRole('button', { name: /^Ver / }).nth(1),
+  ).toHaveAccessibleName('Ver La librería');
+  await page.screenshot({
+    path: testInfo.outputPath('chips-valoracion.png'),
+    fullPage: true,
+  });
+  const cover = page.locator('.book-card').first();
+  const statusBox = (await cover.locator('.book-status').boundingBox())!;
+  const ratingBox = (await cover.locator('.rating-chip').boundingBox())!;
+  expect(statusBox.x + statusBox.width).toBeLessThan(ratingBox.x);
+  expect(
+    await page.evaluate(() => document.documentElement.scrollWidth),
+  ).toBeLessThanOrEqual(page.viewportSize()!.width);
+  await page.getByRole('button', { name: 'Estantería', exact: true }).click();
+  await expect.poll(() => shelfIds(page)).toEqual([1, 3, 2, 6, 5, 8, 7, 4]);
+  await page.getByLabel('Ordenar libros').selectOption('rating-asc');
+  await expect.poll(() => shelfIds(page)).toEqual([2, 3, 1, 6, 5, 8, 7, 4]);
+  await page.reload({ waitUntil: 'domcontentloaded' });
+  await expect(
+    page.getByRole('button', {
+      name: 'Cambiar valoración de La librería: 4 de 5 estrellas',
+      exact: true,
+    }),
   ).toBeVisible();
 });
 

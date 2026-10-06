@@ -1388,6 +1388,84 @@ h3 {
   min-width: 0;
   border-radius: 7px;
 }
+.book-cover-button,
+.book-title-button {
+  display: block;
+  width: 100%;
+  text-align: left;
+  border: 0;
+  padding: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+}
+.book-title-button {
+  line-height: inherit;
+}
+.book-cover-button:focus-visible,
+.book-title-button:focus-visible {
+  outline: 2px solid var(--green);
+  outline-offset: 4px;
+  border-radius: 3px;
+}
+.rating-chip {
+  position: absolute;
+  right: 9px;
+  bottom: 9px;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 7px;
+  min-height: 28px;
+  border: 1px solid #ddd1ad;
+  border-radius: 5px;
+  background: #fff8e4;
+  color: #82611f;
+  font-size: 10px;
+  box-shadow: 0 1px 4px #363f1410;
+}
+.rating-chip.unrated {
+  background: #fffefa;
+  border-color: #d8ddcf;
+  color: var(--green);
+}
+.rating-chip:focus-visible {
+  outline: 2px solid var(--green);
+  outline-offset: 3px;
+}
+.book-status {
+  pointer-events: none;
+}
+.catalog-nav {
+  margin-top: 15px;
+}
+.catalog-pagination {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  margin-top: 30px;
+}
+.catalog-pagination span {
+  font-size: 12px;
+  color: var(--muted);
+}
+.catalog-detail-actions {
+  margin-top: 24px;
+}
+.catalog-loading {
+  padding: 40px 0;
+  color: var(--muted);
+  font-size: 13px;
+}
+.wish-action {
+  margin-top: 13px;
+  padding: 10px 12px;
+  width: 100%;
+}
+.catalog-detail-actions .wish-action {
+  width: auto;
+}
 .book-cover-wrap {
   position: relative;
   padding: 16px 19px 20px;
@@ -1877,8 +1955,7 @@ h3 {
     sans-serif;
   resize: vertical;
 }
-.loan-badge,
-.card-rating {
+.loan-badge {
   display: flex;
   align-items: center;
   gap: 5px;
@@ -1892,10 +1969,6 @@ h3 {
 }
 .loan-badge svg {
   flex-shrink: 0;
-}
-.card-rating {
-  color: #9a752d;
-  letter-spacing: 2px;
 }
 .remove {
   color: #9b8071;

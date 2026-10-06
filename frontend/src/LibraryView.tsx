@@ -12,11 +12,15 @@ import {
   Check,
   RefreshCw,
   Handshake,
+  Heart,
+  Globe2,
 } from 'lucide-react';
-import { Brand, Cover } from './components';
-import { shelves, type LibraryBook } from './types';
+import { Brand } from './components';
+import { shelves, type LibraryBook, type WishlistBook } from './types';
 import { visibleBooks } from './library';
 import Bookshelf from './Bookshelf';
+import CatalogView from './CatalogView';
+import LibraryBookCard from './LibraryBookCard';
 
 interface Props {
   ownerId: string;
@@ -29,6 +33,13 @@ interface Props {
   onRetry: () => void;
   onLogout: () => void;
   signingOut: boolean;
+  wishlist: WishlistBook[];
+  wishlistLoading: boolean;
+  wishlistError: string;
+  onRetryWishlist: () => void;
+  onAddedWish: (entry: WishlistBook) => void;
+  onRemovedWish: (id: number) => void;
+  onRate: (id: number) => void;
 }
 const shelfIcons = {
   all: Library,
@@ -36,6 +47,7 @@ const shelfIcons = {
   reading: BookOpen,
   read: Check,
   lent: Handshake,
+  wishlist: Heart,
 };
 export default function LibraryView({
   ownerId,
@@ -48,13 +60,24 @@ export default function LibraryView({
   onRetry,
   onLogout,
   signingOut,
+  wishlist,
+  wishlistLoading,
+  wishlistError,
+  onRetryWishlist,
+  onAddedWish,
+  onRemovedWish,
+  onRate,
 }: Props) {
   const [shelf, setShelf] = useState<string>('all');
   const [query, setQuery] = useState('');
   const [sort, setSort] = useState('recent');
   const [view, setView] = useState<'covers' | 'shelf'>('covers');
   const visible = visibleBooks(books, shelf, query, sort);
-  const current = shelves.find((item) => item.id === shelf)!;
+  const exploring = shelf === 'catalog' || shelf === 'wishlist';
+  const current = shelves.find((item) => item.id === shelf) ?? {
+    label: 'Catálogo de la plataforma',
+    description: 'Descubre nuevas historias y guarda tus próximos deseos.',
+  };
   const reading = books.filter((entry) => entry.status === 'reading');
   return (
     <div className="app-shell">
@@ -102,11 +125,13 @@ export default function LibraryView({
                 const count =
                   item.id === 'all'
                     ? books.length
-                    : books.filter((entry) =>
-                        item.id === 'lent'
-                          ? entry.is_lent
-                          : entry.status === item.id,
-                      ).length;
+                    : item.id === 'wishlist'
+                      ? wishlist.length
+                      : books.filter((entry) =>
+                          item.id === 'lent'
+                            ? entry.is_lent
+                            : entry.status === item.id,
+                        ).length;
                 return (
                   <button
                     key={item.id}
@@ -121,6 +146,13 @@ export default function LibraryView({
                 );
               })}
             </nav>
+            <button
+              className={`shelf-button catalog-nav ${shelf === 'catalog' ? 'active' : ''}`}
+              aria-current={shelf === 'catalog' ? 'page' : undefined}
+              onClick={() => setShelf('catalog')}
+            >
+              <Globe2 size={18} strokeWidth={1.5} /> Explorar catálogo
+            </button>
             <div className="reading-note">
               <Coffee size={22} strokeWidth={1.2} />
               <p>
@@ -149,53 +181,78 @@ export default function LibraryView({
                 <h2 id="collection-title">{current.label}</h2>
                 <p>{current.description}</p>
               </div>
-              <span className="collection-count">
-                {visible.length} {visible.length === 1 ? 'libro' : 'libros'}
-              </span>
-            </div>
-            <div
-              className="library-view-switch segmented"
-              aria-label="Vista de la biblioteca"
-            >
-              <button
-                aria-pressed={view === 'covers'}
-                onClick={() => setView('covers')}
-              >
-                Portadas
-              </button>
-              <button
-                aria-pressed={view === 'shelf'}
-                onClick={() => setView('shelf')}
-              >
-                Estantería
-              </button>
-            </div>
-            <div className="collection-tools">
-              <label className="search-field">
-                <Search size={17} strokeWidth={1.5} />
-                <span className="sr-only">Buscar por título, autor o ISBN</span>
-                <input
-                  type="search"
-                  value={query}
-                  onChange={(event) => setQuery(event.target.value)}
-                  placeholder="Busca una historia, un autor…"
-                />
-              </label>
-              {view === 'covers' && (
-                <label className="sort-field">
-                  <span className="sr-only">Ordenar libros</span>
-                  <select
-                    value={sort}
-                    onChange={(e) => setSort(e.target.value)}
-                  >
-                    <option value="recent">Más recientes</option>
-                    <option value="title">Por título</option>
-                    <option value="author">Por autor</option>
-                  </select>
-                </label>
+              {shelf !== 'catalog' && (
+                <span className="collection-count">
+                  {shelf === 'wishlist' ? wishlist.length : visible.length}{' '}
+                  {(shelf === 'wishlist' ? wishlist.length : visible.length) ===
+                  1
+                    ? 'libro'
+                    : 'libros'}
+                </span>
               )}
             </div>
-            {error ? (
+            {!exploring && (
+              <>
+                <div
+                  className="library-view-switch segmented"
+                  aria-label="Vista de la biblioteca"
+                >
+                  <button
+                    aria-pressed={view === 'covers'}
+                    onClick={() => setView('covers')}
+                  >
+                    Portadas
+                  </button>
+                  <button
+                    aria-pressed={view === 'shelf'}
+                    onClick={() => setView('shelf')}
+                  >
+                    Estantería
+                  </button>
+                </div>
+                <div className="collection-tools">
+                  <label className="search-field">
+                    <Search size={17} strokeWidth={1.5} />
+                    <span className="sr-only">
+                      Buscar por título, autor o ISBN
+                    </span>
+                    <input
+                      type="search"
+                      value={query}
+                      onChange={(event) => setQuery(event.target.value)}
+                      placeholder="Busca una historia, un autor…"
+                    />
+                  </label>
+                  <label className="sort-field">
+                    <span className="sr-only">Ordenar libros</span>
+                    <select
+                      value={sort}
+                      onChange={(e) => setSort(e.target.value)}
+                    >
+                      <option value="recent">Más recientes</option>
+                      <option value="title">Por título</option>
+                      <option value="author">Por autor</option>
+                      <option value="rating-desc">Mejor valorados</option>
+                      <option value="rating-asc">Menor valoración</option>
+                    </select>
+                  </label>
+                </div>
+              </>
+            )}
+            {exploring ? (
+              <CatalogView
+                key={`${ownerId}:${shelf}`}
+                mode={shelf === 'wishlist' ? 'wishlist' : 'catalog'}
+                ownerId={ownerId}
+                wishlist={wishlist}
+                wishlistLoading={wishlistLoading}
+                wishlistError={wishlistError}
+                onRetryWishlist={onRetryWishlist}
+                onAddedWish={onAddedWish}
+                onRemovedWish={onRemovedWish}
+                onExplore={() => setShelf('catalog')}
+              />
+            ) : error ? (
               <div className="empty-state" role="alert">
                 <BookOpen size={30} strokeWidth={1} />
                 <h3>No podemos abrir tu biblioteca.</h3>
@@ -223,7 +280,10 @@ export default function LibraryView({
                 ownerId={ownerId}
                 books={visible}
                 allBooks={books}
-                canOrganize={shelf === 'all' && !query.trim()}
+                canOrganize={
+                  shelf === 'all' && !query.trim() && sort === 'recent'
+                }
+                preserveVisibleOrder={sort !== 'recent'}
                 onSelect={onSelect}
                 onAdd={onAdd}
                 onReload={onRetry}
@@ -231,47 +291,12 @@ export default function LibraryView({
             ) : visible.length ? (
               <div className="book-grid">
                 {visible.map((entry) => (
-                  <button
-                    className="book-card"
+                  <LibraryBookCard
                     key={entry.book_id}
-                    onClick={() => onSelect(entry.book_id)}
-                    aria-label={`Ver ${entry.book.title}`}
-                  >
-                    <div className="book-cover-wrap">
-                      <Cover book={entry.book} />
-                      <span className={`book-status status-${entry.status}`}>
-                        {
-                          shelves.find((item) => item.id === entry.status)
-                            ?.label
-                        }
-                      </span>
-                    </div>
-                    <h3>{entry.book.title}</h3>
-                    <p>
-                      {entry.book.authors
-                        ?.map((author) => author.name)
-                        .join(', ') || 'Autor sin indicar'}
-                    </p>
-                    {entry.is_lent && (
-                      <span className="loan-badge">
-                        <Handshake size={13} />
-                        {entry.lent_to
-                          ? `Prestado a ${entry.lent_to}`
-                          : 'Prestado'}
-                      </span>
-                    )}
-                    {entry.rating != null && (
-                      <span
-                        className="card-rating"
-                        aria-label={`Valoración personal: ${entry.rating} de 5 estrellas`}
-                      >
-                        <span aria-hidden="true">
-                          {'★'.repeat(entry.rating)}
-                          {'☆'.repeat(5 - entry.rating)}
-                        </span>
-                      </span>
-                    )}
-                  </button>
+                    entry={entry}
+                    onSelect={onSelect}
+                    onRate={onRate}
+                  />
                 ))}
               </div>
             ) : (

@@ -24,6 +24,17 @@ export interface LibraryBook {
   updated_at: string;
   book: Book;
 }
+export interface WishlistBook {
+  book_id: number;
+  added_at: string;
+  book: Book;
+}
+export interface CatalogPage {
+  books: Book[];
+  total: number;
+  page: number;
+  page_size: number;
+}
 export interface SpineAppearance {
   color: string | null;
   width: number | null;
@@ -59,5 +70,10 @@ export const shelves = [
     id: 'lent',
     label: 'Prestados',
     description: 'Historias que has dejado en otras manos.',
+  },
+  {
+    id: 'wishlist',
+    label: 'Lista de deseos',
+    description: 'Historias que quieres tener cerca algún día.',
   },
 ] as const;

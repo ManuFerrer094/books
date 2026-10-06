@@ -23,13 +23,22 @@ export function visibleBooks(
         ).includes(term),
     )
     .sort((a, b) =>
-      sort === 'title'
-        ? a.book.title.localeCompare(b.book.title, 'es')
-        : sort === 'author'
-          ? (a.book.authors?.[0]?.name || '').localeCompare(
-              b.book.authors?.[0]?.name || '',
-              'es',
-            )
-          : Date.parse(b.added_at) - Date.parse(a.added_at),
+      sort === 'rating-desc' || sort === 'rating-asc'
+        ? a.rating == null && b.rating != null
+          ? 1
+          : a.rating != null && b.rating == null
+            ? -1
+            : ((a.rating ?? 0) - (b.rating ?? 0)) *
+                (sort === 'rating-desc' ? -1 : 1) ||
+              a.book.title.localeCompare(b.book.title, 'es') ||
+              a.book_id - b.book_id
+        : sort === 'title'
+          ? a.book.title.localeCompare(b.book.title, 'es')
+          : sort === 'author'
+            ? (a.book.authors?.[0]?.name || '').localeCompare(
+                b.book.authors?.[0]?.name || '',
+                'es',
+              )
+            : Date.parse(b.added_at) - Date.parse(a.added_at),
     );
 }

@@ -41,7 +41,10 @@ En Supabase → Authentication → URL Configuration, añade `http://localhost:5
 - Escanear el código EAN-13 del ISBN con la cámara, revisar el número y confirmar el alta.
 - Añadir título, autores y editorial a mano si el libro no aparece en los catálogos. El ISBN es opcional en este modo.
 - Organizar tu biblioteca en **Por leer**, **Leyendo** y **Leídos**.
-- Buscar por título, autor o ISBN; ordenar por fecha de incorporación, título o autor.
+- Buscar por título, autor o ISBN; ordenar por fecha de incorporación, título, autor o valoración personal (ascendente o descendente). Los libros sin valorar aparecen al final; 0 estrellas cuenta como valoración.
+- Consultar las estrellas en la esquina opuesta al estado de cada portada. **Valorar** abre la ficha y enfoca las estrellas; pulsar una nota existente permite cambiarla.
+- **Explorar catálogo** permite ver y buscar todos los libros compartidos de la plataforma, por páginas, sin mostrar propietarios ni información personal.
+- **Guardar deseo** añade una ficha a tu **Lista de deseos**, el último estante de **Mis estantes**. Puedes consultar su detalle y quitar el deseo; estas acciones no añaden ni retiran libros de tu biblioteca.
 - Consultar la ficha y quitar un libro de tu biblioteca mediante confirmación.
 - Cambiar entre **Portadas** (vista inicial) y **Estantería**, con baldas de madera y lomos que se adaptan al ancho de pantalla.
 - En **Todos mis libros**, sin búsqueda, pulsar **Ordenar estantería** y arrastrar el asa de los lomos con ratón o pantalla táctil. También puedes usar las flechas de cada libro o enfocar el asa y pulsar las teclas ←/→. El orden se guarda en tu cuenta.
@@ -52,6 +55,8 @@ En Supabase → Authentication → URL Configuration, añade `http://localhost:5
 Antes de desplegar esta versión, aplica la [migración 003](../src/books/database/migrations/003_bookshelf.sql) después de las migraciones 001 y 002. Crea los campos personales, la tabla de orden y el bucket privado `book-spines` con sus políticas RLS. No requiere nuevas variables de entorno. Las baldas son automáticas: el mismo orden puede ocupar distintas filas en móvil y ordenador. Los libros nuevos se colocan al final y los retirados desaparecen del orden.
 
 Los cambios se guardan en la API, no solo en el navegador. Añadir el mismo libro vuelve a mostrar su relación existente sin duplicarla ni modificar su estado de lectura. Quitar un libro elimina únicamente su relación con tu biblioteca.
+
+Para catálogo y deseos, aplica la [migración 007](../src/books/database/migrations/007_wishlist_catalog.sql) después de 001–006 y antes de desplegar. Las estrellas utilizan el campo privado de la migración 006. El catálogo consulta solo metadatos compartidos; los deseos se guardan por usuario en `user_wishlist` con RLS. No hay variables nuevas. Consulta [DEPLOYMENT.md](../DEPLOYMENT.md) para aplicar y verificar las migraciones.
 
 ## Cámara gratuita
 

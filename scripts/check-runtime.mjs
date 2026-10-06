@@ -10,4 +10,6 @@ const { default: handler } = await import('../dist/main.js');
 await request(handler).get('/api').expect(200).expect('Hello World!');
 await request(handler).get('/api/docs/').expect(200);
 await request(handler).get('/api/me/books').expect(401);
+await request(handler).get('/api/catalog').expect(401);
+await request(handler).get('/api/me/wishlist').expect(401);
 console.log('Compiled ESM handler works with require(ESM) disabled.');

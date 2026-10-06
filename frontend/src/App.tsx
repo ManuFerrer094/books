@@ -7,7 +7,7 @@ import LibraryView from './LibraryView';
 import AddBook from './AddBook';
 import BookDetails from './BookDetails';
 import { Brand } from './components';
-import type { LibraryBook } from './types';
+import type { LibraryBook, WishlistBook } from './types';
 
 export default function App() {
   const [session, setSession] = useState<Session | null>(null);
@@ -22,6 +22,12 @@ export default function App() {
   const [selected, setSelected] = useState<number | null>(null);
   const [toast, setToast] = useState('');
   const [signingOut, setSigningOut] = useState(false);
+  const [wishlist, setWishlist] = useState<WishlistBook[]>([]);
+  const [wishlistOwner, setWishlistOwner] = useState<string | null>(null);
+  const [wishlistLoading, setWishlistLoading] = useState(true);
+  const [wishlistError, setWishlistError] = useState('');
+  const [wishlistReload, setWishlistReload] = useState(0);
+  const [focusRating, setFocusRating] = useState(false);
   useEffect(() => {
     if (!supabase) return;
     let active = true;
@@ -59,6 +65,10 @@ export default function App() {
     setSelected(null);
     setToast('');
     setError('');
+    setWishlist([]);
+    setWishlistOwner(userId ?? null);
+    setWishlistError('');
+    setFocusRating(false);
   }, [userId]);
   useEffect(() => {
     if (!userId) return;
@@ -80,6 +90,30 @@ export default function App() {
       });
     return () => controller.abort();
   }, [userId, reload]);
+  useEffect(() => {
+    if (!userId) return;
+    const controller = new AbortController();
+    setWishlistLoading(true);
+    setWishlistError('');
+    void api<WishlistBook[]>(
+      '/me/wishlist',
+      { signal: controller.signal },
+      userId,
+    )
+      .then((entries) => {
+        if (!controller.signal.aborted) {
+          setWishlist(entries);
+          setWishlistOwner(userId);
+        }
+      })
+      .catch((cause) => {
+        if (!controller.signal.aborted) setWishlistError(errorMessage(cause));
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) setWishlistLoading(false);
+      });
+    return () => controller.abort();
+  }, [userId, wishlistReload]);
   useEffect(() => {
     if (!toast) return;
     const timeout = window.setTimeout(() => setToast(''), 4500);
@@ -123,7 +157,31 @@ export default function App() {
         error={error}
         email={session.user.email}
         onAdd={() => setAdding(true)}
-        onSelect={setSelected}
+        onSelect={(id) => {
+          setFocusRating(false);
+          setSelected(id);
+        }}
+        onRate={(id) => {
+          setFocusRating(true);
+          setSelected(id);
+        }}
+        wishlist={wishlistOwner === userId ? wishlist : []}
+        wishlistLoading={wishlistLoading}
+        wishlistError={wishlistError}
+        onRetryWishlist={() => setWishlistReload((value) => value + 1)}
+        onAddedWish={(next) => {
+          if (activeUser.current !== userId) return;
+          setWishlist((previous) => [
+            next,
+            ...previous.filter((entry) => entry.book_id !== next.book_id),
+          ]);
+        }}
+        onRemovedWish={(id) => {
+          if (activeUser.current !== userId) return;
+          setWishlist((previous) =>
+            previous.filter((entry) => entry.book_id !== id),
+          );
+        }}
         onRetry={() => setReload((value) => value + 1)}
         onLogout={() => void logout()}
         signingOut={signingOut}
@@ -148,6 +206,7 @@ export default function App() {
       )}
       {entry && (
         <BookDetails
+          focusRating={focusRating}
           ownerId={session.user.id}
           entry={entry}
           onClose={() => setSelected(null)}
