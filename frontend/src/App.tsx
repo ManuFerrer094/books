@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import type { Session } from '@supabase/supabase-js';
-import { supabase } from './supabase';
+import { initializeAuth, supabase } from './supabase';
 import { api, errorMessage } from './api';
 import Auth from './Auth';
 import LibraryView from './LibraryView';
@@ -12,6 +12,7 @@ import type { LibraryBook } from './types';
 export default function App() {
   const [session, setSession] = useState<Session | null>(null);
   const [authReady, setAuthReady] = useState(!supabase);
+  const [authError, setAuthError] = useState('');
   const [books, setBooks] = useState<LibraryBook[]>([]);
   const [owner, setOwner] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -21,25 +22,24 @@ export default function App() {
   const [selected, setSelected] = useState<number | null>(null);
   const [toast, setToast] = useState('');
   const [signingOut, setSigningOut] = useState(false);
-  const initialResolved = useRef(false);
   useEffect(() => {
     if (!supabase) return;
     let active = true;
+    let sessionChanged = false;
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((_event, next) => {
       if (!active) return;
-      initialResolved.current = true;
+      sessionChanged = true;
       setSession(next);
-      setAuthReady(true);
     });
-    void supabase.auth
-      .getSession()
-      .then(({ data }) => {
-        if (active && !initialResolved.current) {
-          setSession(data.session);
-          setAuthReady(true);
-        }
+    void initializeAuth()
+      .then(async (message) => {
+        const { data } = await supabase!.auth.getSession();
+        if (!active) return;
+        if (!sessionChanged) setSession(data.session);
+        setAuthError(message);
+        setAuthReady(true);
       })
       .catch(() => {
         if (active) setAuthReady(true);
@@ -112,7 +112,7 @@ export default function App() {
         <p>Abriendo tu rincón de lectura…</p>
       </main>
     );
-  if (!session) return <Auth />;
+  if (!session) return <Auth initialError={authError} />;
   return (
     <>
       <LibraryView

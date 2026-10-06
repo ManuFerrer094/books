@@ -12,8 +12,9 @@
 3. El catálogo utiliza `SUPABASE_SERVICE_ROLE_KEY`. Debe ser una clave de servidor
    secret/service_role para que las importaciones funcionen con los permisos nuevos.
 4. Activa email/password en Supabase Auth. Si está activa la confirmación de email,
-   confirma el enlace recibido antes de iniciar sesión. Configura Site URL y las
-   URLs de redirección para tu entorno en Supabase Auth.
+   el enlace recibido abre la web con sesión iniciada. Configura Site URL y las
+   URLs de redirección con la URL del frontend, no la del backend (puerto 3000).
+   Consulta la [configuración de confirmación por correo](../../DEPLOYMENT.md#confirmación-de-registro-por-correo).
 5. Arranca con `npm.cmd run start:dev` y abre `http://localhost:3000/docs`.
 
 ```dotenv

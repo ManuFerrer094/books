@@ -1,6 +1,7 @@
 import { useState, type FormEvent } from 'react';
 import { ArrowRight, Leaf, BookOpen } from 'lucide-react';
 import { supabase } from './supabase';
+import { emailRedirectUrl } from './auth-redirect';
 import { Brand, Feedback } from './components';
 
 function authError(message: string) {
@@ -17,12 +18,15 @@ function authError(message: string) {
   return 'No hemos podido conectar. Inténtalo de nuevo en un momento.';
 }
 
-export default function Auth() {
+export default function Auth({ initialError = '' }: { initialError?: string }) {
   const [mode, setMode] = useState<'login' | 'register'>('login');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [busy, setBusy] = useState(false);
-  const [error, setError] = useState('');
+  const [error, setError] = useState(initialError);
+  const [needsConfirmation, setNeedsConfirmation] = useState(
+    Boolean(initialError),
+  );
   const [message, setMessage] = useState('');
   async function submit(event: FormEvent) {
     event.preventDefault();
@@ -40,15 +44,43 @@ export default function Auth() {
           : await supabase.auth.signUp({
               email: email.trim(),
               password,
-              options: { emailRedirectTo: window.location.origin },
+              options: { emailRedirectTo: emailRedirectUrl() },
             });
-      if (result.error) setError(authError(result.error.message));
-      else if (mode === 'register' && !result.data.session) {
+      if (result.error) {
+        setError(authError(result.error.message));
+        if (/email not confirmed/i.test(result.error.message))
+          setNeedsConfirmation(true);
+      } else if (mode === 'register' && !result.data.session) {
+        setNeedsConfirmation(true);
         setMessage(
-          'Revisa tu correo: te hemos enviado un enlace para confirmar tu cuenta. Después podrás entrar.',
+          'Revisa tu correo: te hemos enviado un enlace para confirmar tu cuenta. Al abrirlo entrarás directamente en tu biblioteca.',
         );
         setPassword('');
       }
+    } catch {
+      setError(
+        'No podemos conectar ahora. Comprueba tu conexión e inténtalo de nuevo.',
+      );
+    } finally {
+      setBusy(false);
+    }
+  }
+  async function resendConfirmation() {
+    if (!supabase || !email.trim()) return;
+    setBusy(true);
+    setError('');
+    setMessage('');
+    try {
+      const { error } = await supabase.auth.resend({
+        type: 'signup',
+        email: email.trim(),
+        options: { emailRedirectTo: emailRedirectUrl() },
+      });
+      if (error) setError(authError(error.message));
+      else
+        setMessage(
+          'Revisa tu correo y abre el último enlace de confirmación recibido.',
+        );
     } catch {
       setError(
         'No podemos conectar ahora. Comprueba tu conexión e inténtalo de nuevo.',
@@ -188,6 +220,16 @@ export default function Auth() {
                     : 'Crear mi biblioteca'}
                 <ArrowRight size={17} />
               </button>
+              {needsConfirmation && (
+                <button
+                  type="button"
+                  className="button full"
+                  disabled={busy || !email.trim()}
+                  onClick={() => void resendConfirmation()}
+                >
+                  Reenviar correo de confirmación
+                </button>
+              )}
             </form>
           ) : (
             <p className="feedback error" role="alert">
