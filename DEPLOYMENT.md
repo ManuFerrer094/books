@@ -37,11 +37,28 @@ Configura estas variables en el proyecto para los entornos Production y Preview 
 | `SUPABASE_SERVICE_ROLE_KEY` | Clave secret/service_role del catálogo, solo servidor |
 | `VITE_SUPABASE_PUBLISHABLE_KEY` | Clave pública compartida por Nest y el navegador |
 | `VITE_API_URL`                  | Opcional; el valor por defecto es `/api`. Mantén ese valor para este despliegue                            |
+| `VITE_SITE_URL`                 | Opcional; URL pública del frontend para confirmar el correo. Sin ella se utiliza el origen del navegador con `/` final |
 | `GOOGLE_BOOKS_API_KEY`          | Opcional; habilita Google Books como proveedor adicional                                                   |
 
 Las variables `VITE_` se incorporan al JavaScript durante la compilación. No pongas claves de servidor en ellas. La configuración local compartida está en `.env` de la raíz; Vite también lo carga mediante `envDir`. Estos archivos son locales y no sustituyen la configuración del proyecto en Vercel. No configures `VERCEL` manualmente: lo proporciona Vercel. `API_PROXY_TARGET` es únicamente para el desarrollo independiente con Vite.
 
 Configura el dominio final en Supabase → Authentication → URL Configuration (Site URL y Redirect URLs). Para probar altas desde previews, autoriza también las URLs de preview correspondientes. Aplica previamente las [migraciones y permisos de Supabase](src/auth/README.md).
+
+### Confirmación de registro por correo
+
+En **Authentication → URL Configuration**, configura **Site URL** con la URL pública del **frontend**, terminada en `/`, y añade esa misma URL exacta a **Redirect URLs**. En desarrollo independiente es `http://localhost:5173/`; con `vercel dev` es `http://localhost:3100/`. `http://localhost:3000/` pertenece al backend y no sirve la interfaz.
+
+Para el despliegue actual, usa **`https://books-chi-amber.vercel.app/`** en Site URL y Redirect URLs. Si se utiliza `VITE_SITE_URL`, su valor en Production debe ser esa misma URL.
+
+El registro y el reenvío envían `emailRedirectTo` con `VITE_SITE_URL` o el origen actual del navegador. Supabase debe permitir ese destino; un destino no autorizado puede acabar en el Site URL por defecto. En producción puedes fijar `VITE_SITE_URL=https://tu-dominio/` para que los correos usen un dominio estable. Si se fija en previews, estas también volverán a ese dominio.
+
+En **Authentication → Email Templates → Confirm signup**, conserva el enlace `href="{{ .ConfirmationURL }}"`: confirma el correo en Supabase y vuelve a la app con la sesión. Esta app utiliza el flujo implícito del cliente de Supabase; una plantilla que apunte directamente a `{{ .SiteURL }}` sin verificar el correo, o que genere una ruta personalizada con `token_hash`, requiere otro tratamiento y no debe sustituir ese enlace.
+
+La app espera a que Supabase valide y guarde la sesión antes de mostrar la biblioteca, y retira de la URL los parámetros de autenticación tanto en éxito como en error. Si el enlace caducó o ya se utilizó, muestra un mensaje y permite reenviar la confirmación introduciendo el correo. Cambiar la configuración no corrige los correos enviados anteriormente: solicita uno nuevo después del cambio.
+
+Comprueba el flujo con una cuenta nueva: registrarse, abrir el último correo en un navegador sin sesión previa, comprobar que se abre la biblioteca, que no quedan tokens en la URL y que recargar conserva la sesión. Comprueba también que un enlace caducado muestra el aviso y permite reenviar.
+
+Referencias: [redirecciones de Supabase](https://supabase.com/docs/guides/auth/redirect-urls), [flujo implícito](https://supabase.com/docs/guides/auth/sessions/implicit-flow).
 
 Para esta versión, aplica **una vez y antes de desplegar el backend y frontend** la [migración 003 de estantería](src/books/database/migrations/003_bookshelf.sql), después de 001 y 002. Además del orden y los ajustes personales, crea el bucket privado `book-spines` y sus políticas de acceso. No hacen falta nuevas variables ni almacenar imágenes en Vercel. La migración debe estar aplicada para que los endpoints de biblioteca puedan seleccionar los nuevos campos.
 
