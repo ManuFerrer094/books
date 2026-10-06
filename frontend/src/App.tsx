@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import type { Session } from '@supabase/supabase-js';
-import { initializeAuth, supabase } from './supabase';
+import { initializeAuth, supabase, recoveryCallback } from './supabase';
 import { api, errorMessage } from './api';
 import Auth from './Auth';
 import LibraryView from './LibraryView';
@@ -8,6 +8,8 @@ import AddBook from './AddBook';
 import BookDetails from './BookDetails';
 import { Brand } from './components';
 import type { LibraryBook, WishlistBook } from './types';
+import AccountSettings from './AccountSettings';
+import PasswordForm from './PasswordForm';
 
 export default function App() {
   const [session, setSession] = useState<Session | null>(null);
@@ -28,22 +30,59 @@ export default function App() {
   const [wishlistError, setWishlistError] = useState('');
   const [wishlistReload, setWishlistReload] = useState(0);
   const [focusRating, setFocusRating] = useState(false);
+  const [accountOpen, setAccountOpen] = useState(false);
+  const [authNotice, setAuthNotice] = useState('');
+  const [recoveryMode, setRecoveryMode] = useState(
+    window.location.pathname === '/recuperar-contrasena' || recoveryCallback,
+  );
+  const [recoveryOwner, setRecoveryOwner] = useState<string | null>(() => {
+    try {
+      return window.sessionStorage.getItem('entre-paginas-recovery-user');
+    } catch {
+      return null;
+    }
+  });
+  function rememberRecovery(id: string) {
+    setRecoveryOwner(id);
+    setRecoveryMode(true);
+    try {
+      window.sessionStorage.setItem('entre-paginas-recovery-user', id);
+    } catch {}
+  }
+  function finishRecovery() {
+    setRecoveryOwner(null);
+    setRecoveryMode(false);
+    setAuthError('');
+    try {
+      window.sessionStorage.removeItem('entre-paginas-recovery-user');
+    } catch {}
+    window.history.replaceState(window.history.state, '', '/');
+  }
   useEffect(() => {
     if (!supabase) return;
     let active = true;
     let sessionChanged = false;
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, next) => {
+    } = supabase.auth.onAuthStateChange((event, next) => {
       if (!active) return;
       sessionChanged = true;
       setSession(next);
+      if (event === 'PASSWORD_RECOVERY' && next) rememberRecovery(next.user.id);
+      if (event === 'SIGNED_OUT') {
+        setRecoveryOwner(null);
+        try {
+          window.sessionStorage.removeItem('entre-paginas-recovery-user');
+        } catch {}
+      }
     });
     void initializeAuth()
       .then(async (message) => {
         const { data } = await supabase!.auth.getSession();
         if (!active) return;
         if (!sessionChanged) setSession(data.session);
+        if (recoveryCallback && !message && data.session)
+          rememberRecovery(data.session.user.id);
         setAuthError(message);
         setAuthReady(true);
       })
@@ -69,9 +108,10 @@ export default function App() {
     setWishlistOwner(userId ?? null);
     setWishlistError('');
     setFocusRating(false);
+    setAccountOpen(false);
   }, [userId]);
   useEffect(() => {
-    if (!userId) return;
+    if (!userId || recoveryMode) return;
     const controller = new AbortController();
     setLoading(true);
     setError('');
@@ -89,9 +129,9 @@ export default function App() {
         if (!controller.signal.aborted) setLoading(false);
       });
     return () => controller.abort();
-  }, [userId, reload]);
+  }, [userId, reload, recoveryMode]);
   useEffect(() => {
-    if (!userId) return;
+    if (!userId || recoveryMode) return;
     const controller = new AbortController();
     setWishlistLoading(true);
     setWishlistError('');
@@ -113,7 +153,7 @@ export default function App() {
         if (!controller.signal.aborted) setWishlistLoading(false);
       });
     return () => controller.abort();
-  }, [userId, wishlistReload]);
+  }, [userId, wishlistReload, recoveryMode]);
   useEffect(() => {
     if (!toast) return;
     const timeout = window.setTimeout(() => setToast(''), 4500);
@@ -146,7 +186,38 @@ export default function App() {
         <p>Abriendo tu rincón de lectura…</p>
       </main>
     );
-  if (!session) return <Auth initialError={authError} />;
+  if (recoveryMode) {
+    if (!session || authError || recoveryOwner !== session.user.id)
+      return (
+        <Auth
+          key="recovery"
+          recovery
+          initialError={
+            authError || 'Solicita un enlace para recuperar tu contraseña.'
+          }
+        />
+      );
+    return (
+      <main className="recovery-page">
+        <Brand />
+        <section className="recovery-panel">
+          <span className="eyebrow">VUELVE A TU REFUGIO</span>
+          <h1>Elige una nueva contraseña.</h1>
+          <p className="muted">Para tu cuenta {session.user.email}.</p>
+          <PasswordForm
+            ownerId={session.user.id}
+            recovery
+            onSaved={() => {
+              finishRecovery();
+              setToast('Tu contraseña se ha actualizado.');
+            }}
+          />
+        </section>
+      </main>
+    );
+  }
+  if (!session)
+    return <Auth initialError={authError} initialMessage={authNotice} />;
   return (
     <>
       <LibraryView
@@ -185,7 +256,29 @@ export default function App() {
         onRetry={() => setReload((value) => value + 1)}
         onLogout={() => void logout()}
         signingOut={signingOut}
+        onAccount={() => {
+          setAdding(false);
+          setSelected(null);
+          setAccountOpen(true);
+        }}
       />
+      {accountOpen && (
+        <AccountSettings
+          ownerId={session.user.id}
+          email={session.user.email}
+          onClose={() => setAccountOpen(false)}
+          onDeleted={() => {
+            activeUser.current = undefined;
+            setAccountOpen(false);
+            setBooks([]);
+            setWishlist([]);
+            setSession(null);
+            setAuthNotice('Tu cuenta y tus datos personales se han eliminado.');
+            finishRecovery();
+            void supabase!.auth.signOut({ scope: 'local' }).catch(() => {});
+          }}
+        />
+      )}
       {adding && (
         <AddBook
           onClose={() => setAdding(false)}

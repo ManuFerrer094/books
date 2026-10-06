@@ -37,6 +37,8 @@ En Supabase → Authentication → URL Configuration, añade `http://localhost:5
 ## Qué puedes hacer
 
 - Crear una cuenta, entrar y cerrar la sesión.
+- Recuperar una contraseña olvidada mediante correo y elegir una nueva al abrir el enlace.
+- Abrir **Mi cuenta** (icono de ajustes en la cabecera) para cambiar la contraseña actual, exportar datos como JSON o eliminar la cuenta con contraseña y confirmación. La eliminación retira tus datos y fotos personales, conservando las fichas compartidas del catálogo.
 - Añadir libros por ISBN: Nest busca en su base de datos o consulta sus proveedores e incorpora el libro a tu biblioteca.
 - Escanear el código EAN-13 del ISBN con la cámara, revisar el número y confirmar el alta.
 - Añadir título, autores y editorial a mano si el libro no aparece en los catálogos. El ISBN es opcional en este modo.

@@ -608,6 +608,7 @@ test('catálogo y deseos: recupera errores al cargar sin añadir deseos a ciegas
 
 test('valoraciones: chips, acceso a las estrellas y orden en portadas y estantería', async ({
   page,
+  isMobile,
 }, testInfo) => {
   test.setTimeout(60000);
   await setup(page, { ratings: true });
@@ -665,6 +666,20 @@ test('valoraciones: chips, acceso a las estrellas y orden en portadas y estanter
   const cover = page.locator('.book-card').first();
   const statusBox = (await cover.locator('.book-status').boundingBox())!;
   const ratingBox = (await cover.locator('.rating-chip').boundingBox())!;
+  expect(statusBox.width).toBeCloseTo(ratingBox.width, 0);
+  expect(statusBox.height).toBeCloseTo(ratingBox.height, 0);
+  if (isMobile) {
+    await page.setViewportSize({ width: 320, height: 844 });
+    const smallStatus = (await cover.locator('.book-status').boundingBox())!;
+    const smallRating = (await cover.locator('.rating-chip').boundingBox())!;
+    expect(smallStatus.width).toBeCloseTo(smallRating.width, 0);
+    expect(smallStatus.height).toBeCloseTo(smallRating.height, 0);
+    expect(smallStatus.x + smallStatus.width).toBeLessThan(smallRating.x);
+    await page.screenshot({
+      path: testInfo.outputPath('chips-320px.png'),
+      fullPage: true,
+    });
+  }
   expect(statusBox.x + statusBox.width).toBeLessThan(ratingBox.x);
   expect(
     await page.evaluate(() => document.documentElement.scrollWidth),

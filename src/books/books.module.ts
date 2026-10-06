@@ -12,7 +12,7 @@ import { BookProvidersService } from './book-providers.service.js';
 
 @Module({
   imports: [AuthModule],
-  exports: [BooksService, IsbnLookupService],
+  exports: [BooksService, IsbnLookupService, supabaseProvider.provide],
   controllers: [BooksController],
   providers: [
     BooksService,

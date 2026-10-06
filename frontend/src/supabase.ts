@@ -1,8 +1,10 @@
 import { createClient } from '@supabase/supabase-js';
-import { initializeAuthRedirect } from './auth-redirect';
+import { initializeAuthRedirect, isRecoveryCallback } from './auth-redirect';
 
 const url = import.meta.env.VITE_SUPABASE_URL;
 const key = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
+// Capture the recovery intent before Supabase/URL cleanup consumes the hash.
+export const recoveryCallback = isRecoveryCallback();
 export const configured = Boolean(url && key);
 export const supabase = configured
   ? createClient(url, key, {

@@ -1408,21 +1408,27 @@ h3 {
   outline-offset: 4px;
   border-radius: 3px;
 }
-.rating-chip {
+.rating-chip,
+.book-status {
   position: absolute;
-  right: 9px;
   bottom: 9px;
   display: inline-flex;
   align-items: center;
+  justify-content: center;
   gap: 4px;
   padding: 4px 7px;
   min-height: 28px;
+  width: 66px;
   border: 1px solid #ddd1ad;
   border-radius: 5px;
   background: #fff8e4;
   color: #82611f;
   font-size: 10px;
+  line-height: 1.4;
   box-shadow: 0 1px 4px #363f1410;
+}
+.rating-chip {
+  right: 9px;
 }
 .rating-chip.unrated {
   background: #fffefa;
@@ -1432,6 +1438,73 @@ h3 {
 .rating-chip:focus-visible {
   outline: 2px solid var(--green);
   outline-offset: 3px;
+}
+@media (max-width: 360px) {
+  .book-cover-wrap .rating-chip,
+  .book-cover-wrap .book-status {
+    width: 58px;
+    font-size: 9px;
+    padding: 4px;
+  }
+  .book-cover-wrap .rating-chip {
+    right: 6px;
+  }
+  .book-cover-wrap .book-status {
+    left: 6px;
+  }
+}
+.auth-extra {
+  margin-top: 18px;
+}
+.account-section {
+  padding: 22px 0;
+  border-top: 1px solid var(--border, #dce1cf);
+}
+.account-section h3 {
+  font-family: var(--serif);
+  font-weight: 400;
+  font-size: 22px;
+  margin-bottom: 14px;
+}
+.account-section > p {
+  font-size: 12px;
+  line-height: 1.8;
+  margin-bottom: 16px;
+}
+.account-email {
+  margin-bottom: 22px;
+  overflow-wrap: anywhere;
+}
+.account-fieldset {
+  border: 0;
+  padding: 0;
+  margin: 0;
+  min-width: 0;
+}
+.account-danger h3 {
+  color: #9b5e47;
+}
+.account-danger .button-row {
+  flex-wrap: wrap;
+}
+.recovery-page {
+  min-height: 100dvh;
+  padding: 36px 24px;
+  max-width: 620px;
+  margin: auto;
+}
+.recovery-panel {
+  margin-top: 64px;
+}
+.recovery-panel h1 {
+  font-family: var(--serif);
+  font-size: clamp(28px, 5vw, 38px);
+  font-weight: 400;
+  margin: 16px 0;
+}
+.recovery-panel > p {
+  margin-bottom: 28px;
+  overflow-wrap: anywhere;
 }
 .book-status {
   pointer-events: none;
@@ -1553,13 +1626,8 @@ h3 {
   background: #a2a274;
 }
 .book-status {
-  position: absolute;
   left: 9px;
-  bottom: 9px;
-  padding: 4px 8px;
-  border-radius: 4px;
-  font-size: 8px;
-  box-shadow: 0 1px 4px #363f1410;
+  border-color: transparent;
 }
 .status-pending {
   background: #faf8eb;

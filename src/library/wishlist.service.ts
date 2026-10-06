@@ -11,9 +11,9 @@ import type { AuthRequest } from '../auth/auth.guard.js';
 import { CatalogQueryDto } from './wishlist.dto.js';
 
 type Identity = Pick<AuthRequest, 'user' | 'accessToken'>;
-const WISHLIST_SELECT =
+export const WISHLIST_SELECT =
   'book_id, added_at, books(id, title, isbn, publisher, publication_date, pages, language, cover_url, created_at, updated_at, book_authors(authors(id, name)))';
-function wishlistBook(row: any) {
+export function wishlistBook(row: any) {
   const { book_authors = [], ...book } = row.books;
   return {
     book_id: row.book_id,

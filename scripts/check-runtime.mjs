@@ -12,4 +12,6 @@ await request(handler).get('/api/docs/').expect(200);
 await request(handler).get('/api/me/books').expect(401);
 await request(handler).get('/api/catalog').expect(401);
 await request(handler).get('/api/me/wishlist').expect(401);
+await request(handler).get('/api/me/account/export').expect(401);
+await request(handler).delete('/api/me/account').expect(401);
 console.log('Compiled ESM handler works with require(ESM) disabled.');

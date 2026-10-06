@@ -1,7 +1,7 @@
 import { useState, type FormEvent } from 'react';
 import { ArrowRight, Leaf, BookOpen } from 'lucide-react';
 import { supabase } from './supabase';
-import { emailRedirectUrl } from './auth-redirect';
+import { emailRedirectUrl, passwordRecoveryUrl } from './auth-redirect';
 import { Brand, Feedback } from './components';
 
 function authError(message: string) {
@@ -18,16 +18,25 @@ function authError(message: string) {
   return 'No hemos podido conectar. Inténtalo de nuevo en un momento.';
 }
 
-export default function Auth({ initialError = '' }: { initialError?: string }) {
+export default function Auth({
+  initialError = '',
+  initialMessage = '',
+  recovery = false,
+}: {
+  initialError?: string;
+  initialMessage?: string;
+  recovery?: boolean;
+}) {
   const [mode, setMode] = useState<'login' | 'register'>('login');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState(initialError);
   const [needsConfirmation, setNeedsConfirmation] = useState(
-    Boolean(initialError),
+    Boolean(initialError) && !recovery,
   );
-  const [message, setMessage] = useState('');
+  const [message, setMessage] = useState(initialMessage);
+  const [forgot, setForgot] = useState(recovery);
   async function submit(event: FormEvent) {
     event.preventDefault();
     if (!supabase) return;
@@ -35,6 +44,18 @@ export default function Auth({ initialError = '' }: { initialError?: string }) {
     setMessage('');
     setBusy(true);
     try {
+      if (forgot) {
+        const { error } = await supabase.auth.resetPasswordForEmail(
+          email.trim(),
+          { redirectTo: passwordRecoveryUrl() },
+        );
+        if (error) setError(authError(error.message));
+        else
+          setMessage(
+            'Si hay una cuenta con ese correo, recibirás un enlace para elegir una nueva contraseña. Abre el último correo recibido.',
+          );
+        return;
+      }
       const result =
         mode === 'login'
           ? await supabase.auth.signInWithPassword({
@@ -137,41 +158,47 @@ export default function Auth({ initialError = '' }: { initialError?: string }) {
         <div className="auth-form-wrap">
           <span className="eyebrow">PASA, ESTÁS EN CASA</span>
           <h2>
-            {mode === 'login'
-              ? 'Vuelve a tu biblioteca.'
-              : 'Tu biblioteca empieza aquí.'}
+            {forgot
+              ? 'Recupera tu biblioteca.'
+              : mode === 'login'
+                ? 'Vuelve a tu biblioteca.'
+                : 'Tu biblioteca empieza aquí.'}
           </h2>
           <p className="muted">
-            {mode === 'login'
-              ? 'Tus próximas lecturas te están esperando.'
-              : 'Guarda tus libros y encuentra tu próxima lectura.'}
+            {forgot
+              ? 'Te enviaremos un enlace para elegir una nueva contraseña.'
+              : mode === 'login'
+                ? 'Tus próximas lecturas te están esperando.'
+                : 'Guarda tus libros y encuentra tu próxima lectura.'}
           </p>
-          <div className="segmented" aria-label="Acceso">
-            <button
-              type="button"
-              aria-pressed={mode === 'login'}
-              onClick={() => {
-                setMode('login');
-                setError('');
-                setMessage('');
-              }}
-              disabled={busy}
-            >
-              Entrar
-            </button>
-            <button
-              type="button"
-              aria-pressed={mode === 'register'}
-              onClick={() => {
-                setMode('register');
-                setError('');
-                setMessage('');
-              }}
-              disabled={busy}
-            >
-              Crear cuenta
-            </button>
-          </div>
+          {!forgot && (
+            <div className="segmented" aria-label="Acceso">
+              <button
+                type="button"
+                aria-pressed={mode === 'login'}
+                onClick={() => {
+                  setMode('login');
+                  setError('');
+                  setMessage('');
+                }}
+                disabled={busy}
+              >
+                Entrar
+              </button>
+              <button
+                type="button"
+                aria-pressed={mode === 'register'}
+                onClick={() => {
+                  setMode('register');
+                  setError('');
+                  setMessage('');
+                }}
+                disabled={busy}
+              >
+                Crear cuenta
+              </button>
+            </div>
+          )}
           {supabase ? (
             <form onSubmit={submit}>
               <label className="field">
@@ -187,25 +214,27 @@ export default function Auth({ initialError = '' }: { initialError?: string }) {
                   disabled={busy}
                 />
               </label>
-              <label className="field">
-                Contraseña
-                <input
-                  type="password"
-                  autoComplete={
-                    mode === 'login' ? 'current-password' : 'new-password'
-                  }
-                  placeholder={
-                    mode === 'register'
-                      ? 'Al menos 8 caracteres'
-                      : 'Tu contraseña'
-                  }
-                  required
-                  minLength={mode === 'register' ? 8 : 1}
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  disabled={busy}
-                />
-              </label>
+              {!forgot && (
+                <label className="field">
+                  Contraseña
+                  <input
+                    type="password"
+                    autoComplete={
+                      mode === 'login' ? 'current-password' : 'new-password'
+                    }
+                    placeholder={
+                      mode === 'register'
+                        ? 'Al menos 8 caracteres'
+                        : 'Tu contraseña'
+                    }
+                    required
+                    minLength={mode === 'register' ? 8 : 1}
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    disabled={busy}
+                  />
+                </label>
+              )}
               <Feedback error={error} />
               {message && (
                 <p className="feedback success" role="status">
@@ -215,12 +244,49 @@ export default function Auth({ initialError = '' }: { initialError?: string }) {
               <button className="button primary full" disabled={busy}>
                 {busy
                   ? 'Un momento…'
-                  : mode === 'login'
-                    ? 'Entrar en mi biblioteca'
-                    : 'Crear mi biblioteca'}
+                  : forgot
+                    ? 'Enviar enlace de recuperación'
+                    : mode === 'login'
+                      ? 'Entrar en mi biblioteca'
+                      : 'Crear mi biblioteca'}
                 <ArrowRight size={17} />
               </button>
-              {needsConfirmation && (
+              {forgot ? (
+                <button
+                  type="button"
+                  className="text-button auth-extra"
+                  disabled={busy}
+                  onClick={() => {
+                    if (recovery) {
+                      window.location.assign('/');
+                      return;
+                    }
+                    setForgot(false);
+                    setMode('login');
+                    setError('');
+                    setMessage('');
+                  }}
+                >
+                  Volver a entrar
+                </button>
+              ) : (
+                mode === 'login' && (
+                  <button
+                    type="button"
+                    className="text-button auth-extra"
+                    disabled={busy}
+                    onClick={() => {
+                      setForgot(true);
+                      setPassword('');
+                      setError('');
+                      setMessage('');
+                    }}
+                  >
+                    He olvidado mi contraseña
+                  </button>
+                )
+              )}
+              {needsConfirmation && !forgot && (
                 <button
                   type="button"
                   className="button full"
