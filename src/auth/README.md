@@ -39,6 +39,41 @@ Las fotos se leen mediante URLs firmadas de una hora, renovadas a los 50 minutos
 
 `test/database/bookshelf.sql` comprueba la migración con dos usuarios, conflictos de revisión, dimensiones, RLS del orden y de las fotos. Ejecuta `psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f test/database/bookshelf.sql` en una base de pruebas con las migraciones aplicadas; las inserciones se revierten al terminar.
 
+## Edición de los datos personales del libro
+
+Antes de desplegar, aplica `src/books/database/migrations/004_personal_book_metadata.sql`
+después de las migraciones 001–003. Añade `user_books.metadata` y la función
+`update_personal_book_metadata`, sin modificar las fichas ni los autores del catálogo.
+Puede ejecutarse de nuevo y no requiere nuevas variables de entorno.
+
+Desde la ficha del frontend, **Editar mi libro** permite cambiar título, autores,
+URL de portada, editorial, fecha de publicación, páginas, idioma e ISBN.
+Los datos personalizados se muestran también en las búsquedas y la estantería.
+**Restaurar datos del catálogo**, con confirmación, retira todos los cambios de la
+ficha y mantiene el estado de lectura y la personalización del lomo.
+
+- `PATCH /me/books/:bookId/metadata` recibe los campos que se quieren cambiar.
+  Los omitidos conservan su valor; `null` vacía un campo opcional y `authors: []`
+  elimina los autores de la ficha personal. El título no puede quedar vacío.
+  La portada acepta un enlace HTTP/HTTPS de hasta 1000 caracteres.
+- `DELETE /me/books/:bookId/metadata` restaura los datos del catálogo y devuelve
+  la entrada actualizada, sin retirar el libro de la biblioteca.
+- Las respuestas de biblioteca incluyen `customized` y `book` con los datos
+  efectivos. Los autores personales tienen `name` y no necesitan un ID del catálogo.
+  Un ISBN personal puede coincidir con otro: no modifica la identidad del libro.
+
+La función combina los campos en una única actualización para conservar cambios
+simultáneos en campos distintos. Utiliza el token del usuario, `auth.uid()` y RLS:
+solo edita una relación propia ya existente. Un libro ajeno o que no se haya añadido
+devuelve 404. También se validan los campos en PostgreSQL para impedir que una
+escritura directa guarde IDs, propietarios o datos ajenos a la ficha. El catálogo
+y las fichas de otros usuarios conservan sus datos.
+
+`test/database/personal-book-metadata.sql` comprueba cambios, restauración,
+validación y aislamiento con dos usuarios; revierte los datos al terminar.
+Ejecuta `psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f test/database/personal-book-metadata.sql`
+en una base de pruebas con las migraciones aplicadas.
+
 ## Probar desde Swagger
 
 ### Registrar y entrar

@@ -33,6 +33,7 @@ import {
 } from './library.dto.js';
 import { LibraryService } from './library.service.js';
 import { SpineDto } from './bookshelf.dto.js';
+import { PersonalBookMetadataDto } from './book-metadata.dto.js';
 
 @Controller('me/books')
 @ApiTags('library')
@@ -110,6 +111,31 @@ export class LibraryController {
     @Body() input: SpineDto,
   ) {
     return this.library.updateSpine(request, bookId, input);
+  }
+
+  @Patch(':bookId/metadata')
+  @Header('Cache-Control', 'no-store')
+  @ApiOperation({
+    summary: 'Editar los datos de mi ejemplar sin cambiar el catálogo',
+  })
+  @ApiOkResponse({ type: LibraryBookDto })
+  updateMetadata(
+    @Req() request: AuthRequest,
+    @Param('bookId', ParseIntPipe) bookId: number,
+    @Body() input: PersonalBookMetadataDto,
+  ) {
+    return this.library.updateMetadata(request, bookId, input);
+  }
+
+  @Delete(':bookId/metadata')
+  @Header('Cache-Control', 'no-store')
+  @ApiOperation({ summary: 'Restaurar los datos del catálogo en mi ejemplar' })
+  @ApiOkResponse({ type: LibraryBookDto })
+  resetMetadata(
+    @Req() request: AuthRequest,
+    @Param('bookId', ParseIntPipe) bookId: number,
+  ) {
+    return this.library.updateMetadata(request, bookId, null);
   }
 
   @Delete(':bookId')

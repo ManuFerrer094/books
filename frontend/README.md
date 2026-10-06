@@ -82,3 +82,16 @@ Fuera de Vercel, el proxy local de Vite reenvía `/api/*` al backend independien
 Las fuentes gratuitas DM Sans y Lora se sirven desde `public/fonts/`, junto con sus licencias. Los datos de libros y las portadas dependen de la disponibilidad de los catálogos; las portadas ausentes tienen una cubierta de texto.
 
 La URL y la clave pública usan los mismos nombres `VITE_` en frontend y backend. No se admiten los antiguos nombres `SUPABASE_URL`, `SUPABASE_AUTH_KEY` ni `SUPABASE_KEY`. La clave privada se mantiene exclusivamente en `SUPABASE_SERVICE_ROLE_KEY`, sin prefijo `VITE_`. En local, ambos servicios leen `.env` en la raíz.
+
+## Edición de mis libros
+
+Abre un libro de tu biblioteca y pulsa **Editar mi libro**. Puedes corregir el
+título, añadir o quitar autores, cambiar la portada mediante un enlace HTTP/HTTPS,
+y editar editorial, fecha de publicación, páginas, idioma e ISBN. Guardar solo
+cambia tu ficha personal. Cancelar descarta el borrador y, si falla el guardado,
+puedes reintentarlo sin perder lo escrito.
+
+La opción **Restaurar datos del catálogo** pide confirmación y recupera la ficha
+original sin cambiar el estado de lectura ni el lomo. Requiere la migración
+`004_personal_book_metadata.sql` antes de desplegar frontend y API; consulta
+[`src/auth/README.md`](../src/auth/README.md).
