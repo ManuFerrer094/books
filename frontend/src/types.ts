@@ -3,7 +3,7 @@ export interface Book {
   id: number;
   title: string;
   isbn: string | null;
-  authors: { id: number; name: string }[];
+  authors: { id?: number; name: string }[];
   publisher: string | null;
   publication_date: string | null;
   pages: number | null;
@@ -11,6 +11,7 @@ export interface Book {
   cover_url: string | null;
 }
 export interface LibraryBook {
+  customized?: boolean;
   spine?: SpineAppearance | null;
   book_id: number;
   status: ReadingStatus;

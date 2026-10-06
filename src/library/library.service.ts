@@ -18,14 +18,16 @@ import {
   UpdateLibraryBookDto,
 } from './library.dto.js';
 import { BookshelfDto, SpineDto } from './bookshelf.dto.js';
+import { PersonalBookMetadataDto } from './book-metadata.dto.js';
 
 const LIBRARY_SELECT =
-  'book_id, status, added_at, updated_at, spine_color, spine_width, spine_height, spine_image_path, books(*, book_authors(authors(id, name)))';
+  'book_id, status, added_at, updated_at, metadata, spine_color, spine_width, spine_height, spine_image_path, books(*, book_authors(authors(id, name)))';
 type Identity = Pick<AuthRequest, 'user' | 'accessToken'>;
 
 function libraryBook(row: any) {
   const {
     books,
+    metadata = {},
     spine_color,
     spine_width,
     spine_height,
@@ -41,7 +43,12 @@ function libraryBook(row: any) {
       height: spine_height ?? null,
       image_path: spine_image_path ?? null,
     },
-    book: { ...book, authors: book_authors.map((link: any) => link.authors) },
+    customized: Object.keys(metadata).length > 0,
+    book: {
+      ...book,
+      authors: book_authors.map((link: any) => link.authors),
+      ...metadata,
+    },
   };
 }
 
@@ -63,7 +70,7 @@ export class LibraryService {
     if (error.code === '40001')
       throw new ConflictException('Bookshelf changed');
     if (error.code === '22023' || error.code === '23514')
-      throw new BadRequestException('Invalid bookshelf data');
+      throw new BadRequestException('Invalid library data');
     if (error.code === '23505')
       throw new ConflictException('Book already in library');
     if (error.code === '42501' || error.code === 'PGRST301')
@@ -168,6 +175,22 @@ export class LibraryService {
       book_ids: [...ordered, ...currentIds.filter((id) => remaining.has(id))],
       revision: layout.data?.revision ?? 0,
     };
+  }
+
+  async updateMetadata(
+    identity: Identity,
+    bookId: number,
+    input: PersonalBookMetadataDto | null,
+  ) {
+    const { data, error } = await this.clients
+      .create(identity.accessToken)
+      .rpc('update_personal_book_metadata', {
+        requested_book_id: bookId,
+        metadata_patch: input,
+      });
+    if (error) this.fail(error);
+    if (!data) throw new NotFoundException('Book not found in your library');
+    return this.get(identity, bookId);
   }
 
   async saveBookshelf(identity: Identity, input: BookshelfDto) {

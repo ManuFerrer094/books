@@ -43,6 +43,7 @@ async function setup(
     failSpineOnce?: boolean;
     brokenPhoto?: boolean;
     ambiguousPhotoOnce?: boolean;
+    failMetadataOnce?: boolean;
   } = {},
 ) {
   let books = options.empty ? [] : fixtureBooks();
@@ -62,6 +63,10 @@ async function setup(
   const deletedPhotos: string[] = [];
   const uploadedPhotos: { path: string; size: number }[] = [];
   let nextId = 100;
+  const originalBooks = new Map(
+    books.map((entry) => [entry.book_id, { ...entry.book }]),
+  );
+  let failMetadata = options.failMetadataOnce;
   let catalog: Book | null = null;
   let creates = 0;
   let fail = options.failPersonalOnce;
@@ -221,6 +226,23 @@ async function setup(
       return route.fulfill({ json: entry });
     }
     const id = Number(path.split('/')[3]);
+    if (
+      path.endsWith('/metadata') &&
+      (method === 'PATCH' || method === 'DELETE')
+    ) {
+      if (failMetadata) {
+        failMetadata = false;
+        return route.fulfill({ status: 500, json: {} });
+      }
+      const entry = books.find((item) => item.book_id === id);
+      if (!entry) return route.fulfill({ status: 404, json: {} });
+      entry.book =
+        method === 'DELETE'
+          ? { ...originalBooks.get(id)! }
+          : { ...entry.book, ...body };
+      entry.customized = method !== 'DELETE';
+      return route.fulfill({ json: entry });
+    }
     if (path.endsWith('/spine') && method === 'PATCH') {
       if (failSpine) {
         failSpine = false;
@@ -325,6 +347,93 @@ test('biblioteca: buscar, cambiar de estante, conservar la sesión y quitar con 
   await expect(
     page.getByRole('button', { name: 'Entrar en mi biblioteca' }),
   ).toBeVisible();
+});
+
+test('editar mi libro: reintentar, persistir, buscar y restaurar sus datos', async ({
+  page,
+}, testInfo) => {
+  const mock = await setup(page, { failMetadataOnce: true });
+  await page.route('https://example.com/my-cover.jpg', (route) =>
+    route.fulfill({
+      contentType: 'image/png',
+      body: Buffer.from(
+        'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVQIHWP4z8DwHwAFgAI/ScLbtAAAAABJRU5ErkJggg==',
+        'base64',
+      ),
+    }),
+  );
+  await login(page);
+  await page
+    .getByRole('button', { name: 'Ver El infinito en un junco' })
+    .click();
+  await page
+    .getByRole('button', { name: 'Editar mi libro', exact: true })
+    .click();
+  await page.getByLabel('Título', { exact: true }).fill('Mi edición del junco');
+  await page.getByLabel('Autor 1', { exact: true }).fill('Mi autora');
+  await page.getByRole('button', { name: 'Añadir autor', exact: true }).click();
+  await page.getByLabel('Autor 2', { exact: true }).fill('Otro autor');
+  await page
+    .getByLabel('URL de la portada', { exact: true })
+    .fill('https://example.com/my-cover.jpg');
+  await page.getByLabel('Editorial', { exact: true }).fill('Mi editorial');
+  await page.getByLabel('Páginas', { exact: true }).fill('123');
+  await page.screenshot({
+    path: testInfo.outputPath('editar-mi-libro.png'),
+    fullPage: true,
+  });
+  expect(
+    await page.evaluate(() => document.documentElement.scrollWidth),
+  ).toBeLessThanOrEqual(page.viewportSize()!.width);
+  await page
+    .getByRole('button', { name: 'Guardar cambios', exact: true })
+    .click();
+  await expect(page.getByRole('alert')).toContainText(
+    'No hemos podido guardar',
+  );
+  await expect(page.getByLabel('Título', { exact: true })).toHaveValue(
+    'Mi edición del junco',
+  );
+  await page
+    .getByRole('button', { name: 'Guardar cambios', exact: true })
+    .click();
+  await expect(
+    page
+      .getByRole('dialog')
+      .getByRole('heading', { name: 'Mi edición del junco' }),
+  ).toBeVisible();
+  await expect(page.getByRole('dialog')).toContainText(
+    'Mi autora · Otro autor',
+  );
+  await expect(
+    page
+      .getByRole('dialog')
+      .getByRole('img', { name: 'Portada de Mi edición del junco' }),
+  ).toHaveAttribute('src', 'https://example.com/my-cover.jpg');
+  await page.getByRole('button', { name: 'Cerrar', exact: true }).click();
+  await page.reload({ waitUntil: 'domcontentloaded' });
+  await page.getByLabel('Buscar por título, autor o ISBN').fill('Mi autora');
+  await expect(page.getByRole('button', { name: /^Ver / })).toHaveCount(1);
+  await page.getByRole('button', { name: 'Ver Mi edición del junco' }).click();
+  await expect(
+    page.getByLabel('Estado de lectura', { exact: true }),
+  ).toHaveValue('pending');
+  await page
+    .getByRole('button', { name: 'Editar mi libro', exact: true })
+    .click();
+  await page
+    .getByRole('button', { name: 'Restaurar datos del catálogo' })
+    .click();
+  await page.getByRole('button', { name: 'Sí, restaurar' }).click();
+  await expect(
+    page
+      .getByRole('dialog')
+      .getByRole('heading', { name: 'El infinito en un junco' }),
+  ).toBeVisible();
+  await expect(page.getByRole('dialog')).toContainText('Irene Vallejo');
+  expect(mock.getBooks()[0].book.title).toBe('El infinito en un junco');
+  expect(mock.getBooks()[1].book.title).toBe('El principito');
+  expect(mock.getCreates()).toBe(0);
 });
 
 test('alta por ISBN: valida y evita duplicados', async ({ page }) => {

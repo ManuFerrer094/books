@@ -32,6 +32,7 @@ describe('Authenticated HTTP routes', () => {
     bookshelf: jest.fn<any>(),
     saveBookshelf: jest.fn<any>(),
     updateSpine: jest.fn<any>(),
+    updateMetadata: jest.fn<any>(),
   };
   const books = {
     getBooks: jest.fn<any>(),
@@ -143,6 +144,84 @@ describe('Authenticated HTTP routes', () => {
       .set('Authorization', 'Bearer valid-a')
       .send({})
       .expect(400);
+  });
+  it('allows personal metadata changes and reset without allowing catalog writes', async () => {
+    const body = {
+      title: '  My title  ',
+      authors: [{ name: '  My author  ' }],
+      cover_url: 'https://example.com/cover.jpg',
+      isbn: null,
+      pages: 200,
+      publisher: null,
+      language: 'es',
+      publication_date: '2020-02-29',
+    };
+    await request(app.getHttpServer())
+      .patch('/me/books/1/metadata')
+      .set('Authorization', 'Bearer valid-a')
+      .send(body)
+      .expect(200);
+    expect(library.updateMetadata).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        accessToken: 'valid-a',
+        user: expect.objectContaining({ id: 'user-a' }),
+      }),
+      1,
+      expect.objectContaining({
+        ...body,
+        title: 'My title',
+        authors: [{ name: 'My author' }],
+      }),
+    );
+    await request(app.getHttpServer())
+      .patch('/me/books/1/metadata')
+      .set('Authorization', 'Bearer valid-a')
+      .send({ authors: [], cover_url: null, pages: null })
+      .expect(200);
+    await request(app.getHttpServer())
+      .delete('/me/books/1/metadata')
+      .set('Authorization', 'Bearer valid-a')
+      .expect(200);
+    expect(library.updateMetadata).toHaveBeenLastCalledWith(
+      expect.objectContaining({ accessToken: 'valid-a' }),
+      1,
+      null,
+    );
+    expect(books.updateBook).not.toHaveBeenCalled();
+    for (const method of ['patch', 'delete'] as const) {
+      await request(app.getHttpServer())
+        [method]('/me/books/1/metadata')
+        .send({ title: 'Forged' })
+        .expect(401);
+    }
+  });
+  it.each([
+    { user_id: 'victim', title: 'Changed' },
+    { id: 2 },
+    { book_id: 2 },
+    { title: null },
+    { title: '' },
+    { title: '   ' },
+    { title: 123 },
+    { authors: null },
+    { authors: [{ name: ' ' }] },
+    { authors: [{ id: 1, name: 'Author' }] },
+    { pages: 0 },
+    { pages: 1.5 },
+    { pages: '200' },
+    { pages: 2147483648 },
+    { cover_url: 'javascript:alert(1)' },
+    { cover_url: 'ftp://example.com/a.jpg' },
+    { publication_date: '2023-02-29' },
+    { publisher: 3 },
+    { status: 'read' },
+  ])('rejects invalid or forged personal metadata %j', async (body) => {
+    await request(app.getHttpServer())
+      .patch('/me/books/1/metadata')
+      .set('Authorization', 'Bearer valid-a')
+      .send(body)
+      .expect(400);
+    expect(library.updateMetadata).not.toHaveBeenCalled();
   });
   it('reads and saves only the verified user bookshelf', async () => {
     const layout = { book_ids: [2, 1], revision: 3 };

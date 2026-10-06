@@ -65,6 +65,60 @@ describe('LibraryService', () => {
     expect(saved.added_at).toBe('original');
     expect(query.eq).toHaveBeenCalledWith('user_id', 'user-a');
   });
+  it('applies personal fields on every read without changing shared metadata', async () => {
+    const personal = {
+      ...row,
+      metadata: {
+        title: 'My title',
+        authors: [{ name: 'My author' }],
+        cover_url: null,
+      },
+    };
+    query.order.mockResolvedValue({ data: [personal, row], error: null });
+    const [mine, unchanged] = await service.list(identity);
+    expect(mine.customized).toBe(true);
+    expect(mine.book.title).toBe('My title');
+    expect(mine.book.authors).toEqual([{ name: 'My author' }]);
+    expect(mine.book.cover_url).toBeNull();
+    expect(mine).not.toHaveProperty('metadata');
+    expect(unchanged.customized).toBe(false);
+    expect(unchanged.book.title).toBe('Shared book');
+    expect(row.books.title).toBe('Shared book');
+    query.maybeSingle.mockResolvedValue({ data: personal, error: null });
+    expect(
+      (await service.update(identity, 1, { status: ReadingStatus.Read })).book
+        .title,
+    ).toBe('My title');
+  });
+  it('atomically edits or resets only the personal entry using the user token', async () => {
+    const rpc = jest.fn<any>().mockResolvedValue({ data: true, error: null });
+    const from = jest.fn().mockReturnValue(query);
+    clients.create.mockReturnValue({ rpc, from });
+    await service.updateMetadata(identity, 1, {
+      authors: [{ name: 'Personal author' }],
+    });
+    expect(rpc).toHaveBeenCalledWith('update_personal_book_metadata', {
+      requested_book_id: 1,
+      metadata_patch: { authors: [{ name: 'Personal author' }] },
+    });
+    expect(clients.create).toHaveBeenCalledWith('token-a');
+    expect(from).toHaveBeenCalledWith('user_books');
+    expect(from).not.toHaveBeenCalledWith('books');
+    expect(query.eq).toHaveBeenCalledWith('user_id', 'user-a');
+    await service.updateMetadata(identity, 1, null);
+    expect(rpc).toHaveBeenLastCalledWith('update_personal_book_metadata', {
+      requested_book_id: 1,
+      metadata_patch: null,
+    });
+    rpc.mockResolvedValue({ data: false, error: null });
+    await expect(
+      service.updateMetadata(identity, 2, { title: 'Other book' }),
+    ).rejects.toBeInstanceOf(NotFoundException);
+    rpc.mockResolvedValue({ data: null, error: { code: '22023' } });
+    await expect(
+      service.updateMetadata(identity, 1, { title: '' }),
+    ).rejects.toBeInstanceOf(BadRequestException);
+  });
   it('imports an ISBN and adds the saved shared book', async () => {
     lookup.lookup.mockResolvedValue({
       source: 'inventaire',

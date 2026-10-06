@@ -1,4 +1,4 @@
-import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { ApiProperty, ApiPropertyOptional, OmitType } from '@nestjs/swagger';
 import {
   IsEnum,
   IsInt,
@@ -10,6 +10,17 @@ import {
 } from 'class-validator';
 import { BookDto } from '../books/dto/book.dto.js';
 import { SpineDto } from './bookshelf.dto.js';
+import { CreateAuthorDto } from '../books/dto/author.dto.js';
+
+class PersonalAuthorDto extends CreateAuthorDto {
+  @ApiPropertyOptional({ example: 1, readOnly: true })
+  id?: number;
+}
+
+class PersonalBookDto extends OmitType(BookDto, ['authors'] as const) {
+  @ApiProperty({ type: [PersonalAuthorDto] })
+  authors: PersonalAuthorDto[];
+}
 
 export enum ReadingStatus {
   Pending = 'pending',
@@ -46,6 +57,10 @@ export class UpdateLibraryBookDto {
 }
 
 export class LibraryBookDto {
+  @ApiProperty({
+    description: 'Tiene datos personalizados por el propietario.',
+  })
+  customized: boolean;
   @ApiProperty({ type: SpineDto })
   spine: SpineDto;
   @ApiProperty({ example: 1 })
@@ -56,6 +71,6 @@ export class LibraryBookDto {
   added_at: string;
   @ApiProperty({ format: 'date-time' })
   updated_at: string;
-  @ApiProperty({ type: BookDto })
-  book: BookDto;
+  @ApiProperty({ type: PersonalBookDto })
+  book: PersonalBookDto;
 }
