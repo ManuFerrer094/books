@@ -45,6 +45,7 @@ async function setup(
     ambiguousPhotoOnce?: boolean;
     failMetadataOnce?: boolean;
     failCoverOnce?: boolean;
+    failDetailsOnce?: boolean;
   } = {},
 ) {
   let books = options.empty ? [] : fixtureBooks();
@@ -61,6 +62,7 @@ async function setup(
   let failUpload = options.failUploadOnce;
   let failSpine = options.failSpineOnce;
   let failCover = options.failCoverOnce;
+  let failDetails = options.failDetailsOnce;
   let ambiguous = options.ambiguousPhotoOnce;
   const deletedPhotos: string[] = [];
   const uploadedPhotos: { path: string; size: number }[] = [];
@@ -295,8 +297,13 @@ async function setup(
       return route.fulfill(entry ? { json: entry } : { status: 404, json: {} });
     }
     if (method === 'PATCH') {
+      if (failDetails) {
+        failDetails = false;
+        return route.fulfill({ status: 500, json: {} });
+      }
       const entry = books.find((b) => b.book_id === id)!;
-      entry.status = body.status;
+      Object.assign(entry, body);
+      if (body.is_lent === false) entry.lent_to = null;
       return route.fulfill({ json: entry });
     }
     if (method === 'DELETE') {
@@ -378,6 +385,112 @@ test('biblioteca: buscar, cambiar de estante, conservar la sesión y quitar con 
   await expect(
     page.getByRole('button', { name: 'Entrar en mi biblioteca' }),
   ).toBeVisible();
+});
+
+test('datos personales: préstamos, anotaciones, estrellas, reintentos y persistencia', async ({
+  page,
+}, testInfo) => {
+  test.setTimeout(60000);
+  const state = await setup(page, { failDetailsOnce: true });
+  await login(page);
+  await page.getByRole('button', { name: 'Ver La librería' }).click();
+  const personal = page.getByRole('form', {
+    name: 'Datos personales del libro',
+  });
+  await page.getByLabel('Libro prestado').check();
+  await page.getByLabel('Prestado a').fill('Ana');
+  await page
+    .getByLabel('Mis anotaciones')
+    .fill('Una historia para recordar.\nMi frase favorita.');
+  await page.getByRole('radio', { name: '0 estrellas', exact: true }).check();
+  await page.getByRole('radio', { name: '0 estrellas', exact: true }).focus();
+  await page.keyboard.press('ArrowRight');
+  await expect(
+    page.getByRole('radio', { name: '1 estrella', exact: true }),
+  ).toBeChecked();
+  await page.keyboard.press('ArrowLeft');
+  await personal
+    .getByRole('button', { name: 'Guardar datos personales' })
+    .click();
+  await expect(personal.getByRole('alert')).toContainText(
+    'No hemos podido guardar',
+  );
+  await expect(page.getByLabel('Prestado a')).toHaveValue('Ana');
+  await expect(
+    page.getByRole('radio', { name: '0 estrellas', exact: true }),
+  ).toBeChecked();
+  await personal
+    .getByRole('button', { name: 'Guardar datos personales' })
+    .click();
+  await expect(personal.getByRole('status')).toContainText('se han guardado');
+  await expect(
+    page.getByLabel('Estado de lectura', { exact: true }),
+  ).toHaveValue('reading');
+  await page
+    .getByLabel('Estado de lectura', { exact: true })
+    .selectOption('read');
+  await expect(
+    personal.getByRole('button', { name: 'Guardar datos personales' }),
+  ).toBeDisabled();
+  await page.getByLabel('Mis anotaciones').scrollIntoViewIfNeeded();
+  await page.screenshot({
+    path: testInfo.outputPath('datos-personales.png'),
+    fullPage: true,
+  });
+  expect(
+    await page.evaluate(() => document.documentElement.scrollWidth),
+  ).toBeLessThanOrEqual(page.viewportSize()!.width);
+  await page.getByRole('button', { name: 'Cerrar', exact: true }).click();
+  await page
+    .getByRole('navigation', { name: 'Estantes de tu biblioteca' })
+    .getByRole('button', { name: /^Prestados/ })
+    .click();
+  await expect(page.getByRole('button', { name: /^Ver / })).toHaveCount(1);
+  await expect(page.getByText('Prestado a Ana', { exact: true })).toBeVisible();
+  await page.reload({ waitUntil: 'domcontentloaded' });
+  await page.getByRole('button', { name: 'Ver La librería' }).click();
+  await expect(page.getByLabel('Libro prestado')).toBeChecked();
+  await expect(page.getByLabel('Prestado a')).toHaveValue('Ana');
+  await expect(page.getByLabel('Mis anotaciones')).toHaveValue(
+    'Una historia para recordar.\nMi frase favorita.',
+  );
+  await expect(
+    page.getByRole('radio', { name: '0 estrellas', exact: true }),
+  ).toBeChecked();
+  await expect(
+    page.getByLabel('Estado de lectura', { exact: true }),
+  ).toHaveValue('read');
+  await page.getByRole('radio', { name: '5 estrellas', exact: true }).check();
+  await personal
+    .getByRole('button', { name: 'Guardar datos personales' })
+    .click();
+  await expect(personal.getByRole('status')).toContainText('se han guardado');
+  expect(state.getBooks().find((entry) => entry.book_id === 3)).toMatchObject({
+    is_lent: true,
+    rating: 5,
+    lent_to: 'Ana',
+    status: 'read',
+  });
+  await page.getByLabel('Libro prestado').uncheck();
+  await page.getByLabel('Mis anotaciones').fill('');
+  await page.getByRole('button', { name: 'Quitar valoración' }).click();
+  await personal
+    .getByRole('button', { name: 'Guardar datos personales' })
+    .click();
+  await expect(personal.getByRole('status')).toContainText('se han guardado');
+  expect(state.getBooks().find((entry) => entry.book_id === 3)).toMatchObject({
+    is_lent: false,
+    lent_to: null,
+    notes: null,
+    rating: null,
+    status: 'read',
+  });
+  await page.getByRole('button', { name: 'Cerrar', exact: true }).click();
+  await page
+    .getByRole('navigation', { name: 'Estantes de tu biblioteca' })
+    .getByRole('button', { name: /^Prestados/ })
+    .click();
+  await expect(page.getByRole('button', { name: /^Ver / })).toHaveCount(0);
 });
 
 test('editar mi libro: reintentar, persistir, buscar y restaurar sus datos', async ({

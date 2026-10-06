@@ -89,6 +89,10 @@ También se mantiene el desarrollo independiente habitual: `npm run start:dev` e
 
 ## Compilación y pruebas
 
+Para los préstamos, las anotaciones y las estrellas, aplica **antes de desplegar API y frontend** la [migración 006](src/books/database/migrations/006_book_personal_details.sql), después de 001–005. Añade `is_lent`, `lent_to`, `notes` y `rating` a `user_books`, con límites y las políticas RLS existentes. Los libros actuales conservan sus estados de lectura; empiezan sin préstamo, anotaciones ni valoración. No requiere nuevas variables.
+
+La [prueba SQL de datos personales](test/database/book-personal-details.sql) comprueba valores, privacidad entre dos lectores y conservación al restaurar el catálogo. Ejecútala en una base de pruebas con las migraciones aplicadas: `psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f test/database/book-personal-details.sql`. Sus datos se revierten al terminar.
+
 ```sh
 npm run build
 npm test -- --runInBand

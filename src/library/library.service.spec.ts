@@ -65,6 +65,68 @@ describe('LibraryService', () => {
     expect(saved.added_at).toBe('original');
     expect(query.eq).toHaveBeenCalledWith('user_id', 'user-a');
   });
+  it('updates only edited personal fields, keeping zero distinct from no rating', async () => {
+    await service.update(identity, 1, {
+      is_lent: true,
+      lent_to: '  Ana  ',
+      notes: '  Ideas\nprivadas  ',
+      rating: 0,
+    });
+    expect(query.update).toHaveBeenCalledWith({
+      is_lent: true,
+      lent_to: 'Ana',
+      notes: 'Ideas\nprivadas',
+      rating: 0,
+      updated_at: expect.any(String),
+    });
+    expect(query.update.mock.calls[0][0]).not.toHaveProperty('status');
+    expect(query.eq).toHaveBeenCalledWith('user_id', 'user-a');
+    expect(query.eq).toHaveBeenCalledWith('book_id', 1);
+    await service.update(identity, 1, { rating: null, notes: '' });
+    expect(query.update).toHaveBeenLastCalledWith({
+      rating: null,
+      notes: null,
+      updated_at: expect.any(String),
+    });
+  });
+  it('clears the borrower on return without clearing notes or reading status', async () => {
+    await service.update(identity, 1, { is_lent: false });
+    expect(query.update).toHaveBeenCalledWith({
+      is_lent: false,
+      lent_to: null,
+      updated_at: expect.any(String),
+    });
+    await expect(
+      service.update(identity, 1, { is_lent: false, lent_to: 'Ana' }),
+    ).rejects.toBeInstanceOf(BadRequestException);
+    await expect(service.update(identity, 1, {})).rejects.toBeInstanceOf(
+      BadRequestException,
+    );
+    expect(query.update).toHaveBeenCalledTimes(1);
+  });
+  it('returns private fields from reads and keeps the shared book untouched', async () => {
+    query.maybeSingle.mockResolvedValue({
+      data: {
+        ...row,
+        is_lent: true,
+        lent_to: 'Ana',
+        notes: 'Private',
+        rating: 4,
+      },
+      error: null,
+    });
+    const saved = await service.get(identity, 1);
+    expect(saved).toMatchObject({
+      is_lent: true,
+      lent_to: 'Ana',
+      notes: 'Private',
+      rating: 4,
+      status: 'reading',
+    });
+    expect(saved.book).not.toHaveProperty('notes');
+    expect(saved.book).not.toHaveProperty('rating');
+    expect(row.books).not.toHaveProperty('notes');
+  });
   it('applies personal fields on every read without changing shared metadata', async () => {
     const personal = {
       ...row,

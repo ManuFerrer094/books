@@ -12,6 +12,10 @@ export interface Book {
   cover_image_path?: string | null;
 }
 export interface LibraryBook {
+  is_lent?: boolean;
+  lent_to?: string | null;
+  notes?: string | null;
+  rating?: number | null;
   customized?: boolean;
   spine?: SpineAppearance | null;
   book_id: number;
@@ -50,5 +54,10 @@ export const shelves = [
     id: 'read',
     label: 'Leídos',
     description: 'Un pequeño recuerdo de cada viaje.',
+  },
+  {
+    id: 'lent',
+    label: 'Prestados',
+    description: 'Historias que has dejado en otras manos.',
   },
 ] as const;

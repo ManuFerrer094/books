@@ -1,9 +1,11 @@
 import { ApiProperty, ApiPropertyOptional, OmitType } from '@nestjs/swagger';
 import {
   IsEnum,
+  IsBoolean,
   IsInt,
   IsString,
   MaxLength,
+  Max,
   Min,
   MinLength,
   ValidateIf,
@@ -56,12 +58,53 @@ export class AddLibraryIsbnDto extends ReadingStatusDto {
 }
 
 export class UpdateLibraryBookDto {
-  @ApiProperty({ enum: ReadingStatus })
+  @ApiPropertyOptional({ enum: ReadingStatus })
+  @ValidateIf((_, value) => value !== undefined)
   @IsEnum(ReadingStatus)
-  status: ReadingStatus;
+  status?: ReadingStatus;
+
+  @ApiPropertyOptional({
+    description: 'Préstamo independiente del estado de lectura.',
+  })
+  @ValidateIf((_, value) => value !== undefined)
+  @IsBoolean()
+  is_lent?: boolean;
+
+  @ApiPropertyOptional({ type: String, nullable: true, maxLength: 200 })
+  @ValidateIf((_, value) => value != null)
+  @IsString()
+  @MaxLength(200)
+  lent_to?: string | null;
+
+  @ApiPropertyOptional({ type: String, nullable: true, maxLength: 10000 })
+  @ValidateIf((_, value) => value != null)
+  @IsString()
+  @MaxLength(10000)
+  notes?: string | null;
+
+  @ApiPropertyOptional({
+    nullable: true,
+    type: Number,
+    minimum: 0,
+    maximum: 5,
+    description: 'null significa sin valorar.',
+  })
+  @ValidateIf((_, value) => value != null)
+  @IsInt()
+  @Min(0)
+  @Max(5)
+  rating?: number | null;
 }
 
 export class LibraryBookDto {
+  @ApiProperty()
+  is_lent: boolean;
+  @ApiProperty({ type: String, nullable: true })
+  lent_to: string | null;
+  @ApiProperty({ type: String, nullable: true })
+  notes: string | null;
+  @ApiProperty({ type: Number, nullable: true, minimum: 0, maximum: 5 })
+  rating: number | null;
   @ApiProperty({
     description: 'Tiene datos personalizados por el propietario.',
   })

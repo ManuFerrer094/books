@@ -1,5 +1,6 @@
 import {
   Body,
+  BadRequestException,
   Controller,
   Delete,
   Get,
@@ -93,13 +94,19 @@ export class LibraryController {
   }
 
   @Patch(':bookId')
-  @ApiOperation({ summary: 'Cambiar mi estado de lectura' })
+  @Header('Cache-Control', 'no-store')
+  @ApiOperation({
+    summary:
+      'Actualizar lectura, préstamo, anotaciones y valoración de mi libro',
+  })
   @ApiOkResponse({ type: LibraryBookDto })
   update(
     @Req() request: AuthRequest,
     @Param('bookId', ParseIntPipe) bookId: number,
     @Body() input: UpdateLibraryBookDto,
   ) {
+    if (Object.values(input).every((value) => value === undefined))
+      throw new BadRequestException('Provide at least one library field');
     return this.library.update(request, bookId, input);
   }
 
