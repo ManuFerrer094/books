@@ -66,7 +66,7 @@ export class AccountService {
         ),
         client
           .from('user_bookshelf')
-          .select('book_ids, revision')
+          .select('book_ids, revision, design')
           .eq('user_id', identity.user.id)
           .maybeSingle(),
       ]);

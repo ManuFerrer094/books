@@ -10,6 +10,12 @@ import { AuthClientFactory } from '../auth/auth-client.factory.js';
 import { IsbnLookupService } from '../books/isbn-lookup.service.js';
 import type { AuthRequest } from '../auth/auth.guard.js';
 import { ReadingStatus } from './library.dto.js';
+import {
+  migrateDesign,
+  placedIds,
+  decorItem,
+  placeItem,
+} from './bookshelf-design.js';
 
 describe('LibraryService', () => {
   let query: Record<string, jest.Mock<any>>;
@@ -257,17 +263,23 @@ describe('LibraryService', () => {
       .fn<any>()
       .mockResolvedValue({ data: { book_ids: [1], revision: 1 }, error: null });
     clients.create.mockReturnValue({ rpc });
+    const design = migrateDesign([{ book_id: 1 }]);
     expect(
-      await service.saveBookshelf(identity, { book_ids: [1], revision: 0 }),
+      await service.saveBookshelf(identity, {
+        book_ids: [1],
+        revision: 0,
+        design,
+      }),
     ).toEqual({ book_ids: [1], revision: 1 });
     expect(clients.create).toHaveBeenCalledWith('token-a');
-    expect(rpc).toHaveBeenCalledWith('save_bookshelf_order', {
+    expect(rpc).toHaveBeenCalledWith('save_bookshelf_design', {
       requested_book_ids: [1],
       expected_revision: 0,
+      requested_design: design,
     });
     rpc.mockResolvedValue({ data: null, error: { code: '40001' } });
     await expect(
-      service.saveBookshelf(identity, { book_ids: [1], revision: 0 }),
+      service.saveBookshelf(identity, { book_ids: [1], revision: 0, design }),
     ).rejects.toBeInstanceOf(ConflictException);
   });
   it('reconciles persisted order with additions and removals without writing on GET', async () => {
@@ -292,13 +304,61 @@ describe('LibraryService', () => {
           table === 'user_bookshelf' ? layoutQuery : query,
         ),
     });
-    expect(await service.bookshelf(identity)).toEqual({
+    const result = await service.bookshelf(identity);
+    expect(result).toMatchObject({
       book_ids: [2, 1, 3],
       revision: 7,
     });
+    expect(placedIds(result.design)).toEqual([2, 1, 3]);
     expect(layoutQuery.eq).toHaveBeenCalledWith('user_id', 'user-a');
     expect(query.eq).toHaveBeenCalledWith('user_id', 'user-a');
     expect(query.upsert).not.toHaveBeenCalled();
+  });
+  it('rejects overlapping and duplicate book placements before the RPC', async () => {
+    const design = migrateDesign([{ book_id: 1 }, { book_id: 2 }]);
+    design.items[1].x = design.items[0].x;
+    await expect(
+      service.saveBookshelf(identity, {
+        book_ids: [1, 2],
+        revision: 0,
+        design,
+      }),
+    ).rejects.toBeInstanceOf(BadRequestException);
+    design.items[1].x = 200;
+    design.items[1].book_ids = [1];
+    await expect(
+      service.saveBookshelf(identity, {
+        book_ids: [1, 2],
+        revision: 0,
+        design,
+      }),
+    ).rejects.toBeInstanceOf(BadRequestException);
+  });
+  it('legacy order writes retain decorations and use the same revision transaction', async () => {
+    const original = placeItem(
+      migrateDesign([{ book_id: 1 }, { book_id: 2 }]),
+      decorItem('fern'),
+    )!;
+    const layoutSpy = jest
+      .spyOn(service, 'bookshelf')
+      .mockResolvedValueOnce({
+        book_ids: [1, 2],
+        revision: 0,
+        design: original,
+      });
+    const listSpy = jest
+      .spyOn(service, 'list')
+      .mockResolvedValueOnce([{ book_id: 1 }, { book_id: 2 }] as any);
+    const rpc = jest.fn<any>().mockResolvedValue({ data: {}, error: null });
+    clients.create.mockReturnValue({ rpc });
+    await service.saveBookshelf(identity, { book_ids: [2, 1], revision: 0 });
+    const saved = rpc.mock.calls[0][1].requested_design;
+    expect(placedIds(saved)).toEqual([2, 1]);
+    expect(saved.items.find((item: any) => item.kind === 'decor')).toEqual(
+      original.items.find((item) => item.kind === 'decor'),
+    );
+    layoutSpy.mockRestore();
+    listSpy.mockRestore();
   });
   it('updates personal appearance without touching shared metadata or status', async () => {
     query.maybeSingle

@@ -3,6 +3,7 @@ import {
   ArrayUnique,
   IsArray,
   IsInt,
+  IsObject,
   Matches,
   Max,
   Min,
@@ -21,6 +22,13 @@ export class BookshelfDto {
   @IsInt()
   @Min(0)
   revision: number;
+
+  @ApiPropertyOptional({
+    description: 'Versioned bookshelf scene; omitted by legacy order clients.',
+  })
+  @ValidateIf((_, value) => value !== undefined)
+  @IsObject()
+  design?: import('./bookshelf-design.js').BookshelfDesign;
 }
 
 export class SpineDto {

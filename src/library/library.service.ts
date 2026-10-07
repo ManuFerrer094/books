@@ -20,6 +20,13 @@ import {
 import { BookshelfDto, SpineDto } from './bookshelf.dto.js';
 import { PersonalBookMetadataDto } from './book-metadata.dto.js';
 import { CoverDto } from './cover.dto.js';
+import {
+  arrangeBooks,
+  designOrder,
+  migrateDesign,
+  reconcileDesign,
+  validateDesign,
+} from './bookshelf-design.js';
 
 export const LIBRARY_SELECT =
   'book_id, status, is_lent, lent_to, notes, rating, added_at, updated_at, metadata, cover_image_path, spine_color, spine_width, spine_height, spine_image_path, books(*, book_authors(authors(id, name)))';
@@ -174,12 +181,14 @@ export class LibraryService {
     const [layout, library] = await Promise.all([
       client
         .from('user_bookshelf')
-        .select('book_ids, revision')
+        .select('book_ids, revision, design')
         .eq('user_id', identity.user.id)
         .maybeSingle(),
       client
         .from('user_books')
-        .select('book_id, added_at')
+        .select(
+          'book_id, added_at, spine_width, spine_height, metadata, books(pages)',
+        )
         .eq('user_id', identity.user.id)
         .order('added_at', { ascending: true })
         .order('book_id', { ascending: true }),
@@ -195,9 +204,29 @@ export class LibraryService {
       remaining.delete(id);
       return exists;
     });
+    const book_ids = [
+      ...ordered,
+      ...currentIds.filter((id) => remaining.has(id)),
+    ];
+    const records = new Map(
+      (library.data ?? []).map((row: any) => [row.book_id, row]),
+    );
+    const design = layout.data?.design
+      ? reconcileDesign(layout.data.design, currentIds)
+      : migrateDesign(
+          book_ids.map((id) => {
+            const row = records.get(id) as any;
+            return {
+              book_id: id,
+              spine: { width: row.spine_width, height: row.spine_height },
+              book: { ...row.books, ...row.metadata },
+            };
+          }),
+        );
     return {
-      book_ids: [...ordered, ...currentIds.filter((id) => remaining.has(id))],
+      book_ids: designOrder(design, book_ids),
       revision: layout.data?.revision ?? 0,
+      design,
     };
   }
 
@@ -226,11 +255,39 @@ export class LibraryService {
   }
 
   async saveBookshelf(identity: Identity, input: BookshelfDto) {
+    if (input.design !== undefined) {
+      try {
+        validateDesign(input.design, input.book_ids);
+        if (
+          JSON.stringify(designOrder(input.design, input.book_ids)) !==
+          JSON.stringify(input.book_ids)
+        )
+          throw new Error('El orden no coincide con el diseño.');
+      } catch (cause) {
+        throw new BadRequestException(
+          cause instanceof Error ? cause.message : 'Invalid bookshelf',
+        );
+      }
+    } else {
+      // Legacy callers keep their order semantics while retaining all decorations.
+      const current = await this.bookshelf(identity);
+      const books = await this.list(identity);
+      const byId = new Map(books.map((entry: any) => [entry.book_id, entry]));
+      input = {
+        ...input,
+        design: arrangeBooks(
+          current.design,
+          input.book_ids.map((id) => byId.get(id) as any).filter(Boolean),
+          true,
+        ),
+      };
+    }
     const { data, error } = await this.clients
       .create(identity.accessToken)
-      .rpc('save_bookshelf_order', {
+      .rpc('save_bookshelf_design', {
         requested_book_ids: input.book_ids,
         expected_revision: input.revision,
+        requested_design: input.design,
       });
     if (error) this.fail(error);
     return data;

@@ -1,4 +1,6 @@
 import { expect, test, type Page } from '@playwright/test';
+const appUrl = (path = '/') =>
+  new URL(path, test.info().project.use.baseURL).href;
 import { readFile } from 'node:fs/promises';
 test.setTimeout(60000);
 const user = {
@@ -124,7 +126,7 @@ test('cuenta: solicita recuperación sin revelar si existe el correo y usa la UR
     .getByRole('button', { name: 'Enviar enlace de recuperación' })
     .click();
   expect(new URL((await requested).url()).searchParams.get('redirect_to')).toBe(
-    'http://localhost:5173/recuperar-contrasena',
+    appUrl('/recuperar-contrasena'),
   );
   await expect(page.getByRole('status')).toContainText(
     'Si hay una cuenta con ese correo',
@@ -145,7 +147,7 @@ test('cuenta: el enlace permite cambiar la contraseña, soporta recarga y reinte
   await expect(
     page.getByRole('heading', { name: 'Elige una nueva contraseña.' }),
   ).toBeVisible();
-  await expect(page).toHaveURL('http://localhost:5173/recuperar-contrasena');
+  await expect(page).toHaveURL(appUrl('/recuperar-contrasena'));
   await expect(
     page.getByRole('heading', { name: 'Todos mis libros' }),
   ).toHaveCount(0);
@@ -175,7 +177,7 @@ test('cuenta: el enlace permite cambiar la contraseña, soporta recarga y reinte
   await expect(
     page.getByRole('heading', { name: 'Todos mis libros' }),
   ).toBeVisible();
-  await expect(page).toHaveURL('http://localhost:5173/');
+  await expect(page).toHaveURL(appUrl('/'));
   expect(state.getUpdates()).toBe(2);
 });
 
@@ -190,7 +192,7 @@ test('cuenta: un enlace de recuperación caducado permite solicitar otro, sin ha
   await expect(page.getByRole('alert')).toContainText(
     'recuperar tu contraseña ha caducado',
   );
-  await expect(page).toHaveURL('http://localhost:5173/recuperar-contrasena');
+  await expect(page).toHaveURL(appUrl('/recuperar-contrasena'));
   await expect(
     page.getByRole('button', { name: 'Guardar nueva contraseña' }),
   ).toHaveCount(0);

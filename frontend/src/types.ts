@@ -44,6 +44,7 @@ export interface SpineAppearance {
 export interface BookshelfLayout {
   book_ids: number[];
   revision: number;
+  design?: import('../../src/library/bookshelf-design').BookshelfDesign;
 }
 export const shelves = [
   {

@@ -4,6 +4,7 @@ import { configureApp } from './app.setup.js';
 import { getCACertificates, setDefaultCACertificates } from 'node:tls';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import type { INestApplication } from '@nestjs/common';
+import type { NestExpressApplication } from '@nestjs/platform-express';
 
 async function bootstrap() {
   // Include the OS trust store (e.g. Windows enterprise/proxy certificates),
@@ -17,9 +18,15 @@ async function bootstrap() {
       ...getCACertificates('system'),
     ]);
   }
-  const app = await NestFactory.create(AppModule);
+  const app = await NestFactory.create<NestExpressApplication>(AppModule);
+  app.useBodyParser('json', { limit: '2mb' });
   console.log('Nest Vercel check: before configuration');
-  try { configureApp(app); } catch (error) { console.error('Nest configuration failed:', error); throw error; }
+  try {
+    configureApp(app);
+  } catch (error) {
+    console.error('Nest configuration failed:', error);
+    throw error;
+  }
   console.log('Nest Vercel check: before initialization');
   await app.init();
   console.log('Nest Vercel check: initialized');

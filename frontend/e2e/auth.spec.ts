@@ -1,4 +1,6 @@
 import { expect, test, type Page } from '@playwright/test';
+const appUrl = (path = '/') =>
+  new URL(path, test.info().project.use.baseURL).href;
 
 // Allow Vite's first module compilation on Windows to finish on a cold start.
 test.setTimeout(60000);
@@ -68,7 +70,7 @@ test('el registro dirige la confirmación al frontend', async ({ page }) => {
   );
   await page.getByRole('button', { name: 'Crear mi biblioteca' }).click();
   expect(new URL((await signup).url()).searchParams.get('redirect_to')).toBe(
-    'http://localhost:5173/',
+    appUrl('/'),
   );
   await expect(page.getByRole('status')).toContainText(
     'Al abrirlo entrarás directamente',
@@ -83,7 +85,7 @@ test('confirmar en un navegador sin sesión abre la biblioteca y conserva la ses
   await expect(
     page.getByRole('heading', { name: 'Todos mis libros' }),
   ).toBeVisible();
-  await expect(page).toHaveURL('http://localhost:5173/');
+  await expect(page).toHaveURL(appUrl('/'));
   await page.reload({ waitUntil: 'domcontentloaded' });
   await expect(
     page.getByRole('heading', { name: 'Todos mis libros' }),
@@ -103,7 +105,7 @@ test('retira también los tokens enviados en la query y conserva parámetros aje
   await expect(
     page.getByRole('heading', { name: 'Todos mis libros' }),
   ).toBeVisible();
-  await expect(page).toHaveURL('http://localhost:5173/?campaign=books#reading');
+  await expect(page).toHaveURL(appUrl('/?campaign=books#reading'));
 });
 
 test('el enlace caducado muestra el aviso, limpia la URL y permite pedir un correo nuevo', async ({
@@ -114,7 +116,7 @@ test('el enlace caducado muestra el aviso, limpia la URL y permite pedir un corr
   await expect(page.getByRole('alert')).toContainText(
     'ha caducado o ya se ha utilizado',
   );
-  await expect(page).toHaveURL('http://localhost:5173/');
+  await expect(page).toHaveURL(appUrl('/'));
   await page.getByLabel('Tu correo').fill(user.email);
   const resend = page.waitForRequest((request) =>
     new URL(request.url()).pathname.endsWith('/resend'),
@@ -128,7 +130,7 @@ test('el enlace caducado muestra el aviso, limpia la URL y permite pedir un corr
     email: user.email,
   });
   expect(new URL(request.url()).searchParams.get('redirect_to')).toBe(
-    'http://localhost:5173/',
+    appUrl('/'),
   );
   await expect(page.getByRole('status')).toContainText('último enlace');
 });
@@ -144,7 +146,7 @@ test('los errores en la query se limpian sin mostrar el mensaje interno de Supab
   await expect(page.getByRole('alert')).not.toContainText(
     'Email link is invalid',
   );
-  await expect(page).toHaveURL('http://localhost:5173/?campaign=books');
+  await expect(page).toHaveURL(appUrl('/?campaign=books'));
 });
 
 test('rechaza un token inválido, muestra un error y retira las credenciales de la URL', async ({
@@ -155,7 +157,7 @@ test('rechaza un token inválido, muestra un error y retira las credenciales de 
   await expect(page.getByRole('alert')).toContainText(
     'No hemos podido confirmar',
   );
-  await expect(page).toHaveURL('http://localhost:5173/');
+  await expect(page).toHaveURL(appUrl('/'));
   await expect(
     page.getByRole('heading', { name: 'Todos mis libros' }),
   ).toHaveCount(0);
@@ -177,5 +179,5 @@ test('un enlace caducado no invalida una sesión existente', async ({
   await expect(
     page.getByRole('heading', { name: 'Todos mis libros' }),
   ).toBeVisible();
-  await expect(page).toHaveURL('http://localhost:5173/?from=email');
+  await expect(page).toHaveURL(appUrl('/?from=email'));
 });

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
   BookOpen,
   Plus,
@@ -42,6 +42,7 @@ interface Props {
   onRemovedWish: (id: number) => void;
   onRate: (id: number) => void;
   onAccount: () => void;
+  onUpdated: (book: LibraryBook) => void;
 }
 const shelfIcons = {
   all: Library,
@@ -70,11 +71,25 @@ export default function LibraryView({
   onRemovedWish,
   onRate,
   onAccount,
+  onUpdated,
 }: Props) {
   const [shelf, setShelf] = useState<string>('all');
   const [query, setQuery] = useState('');
   const [sort, setSort] = useState('recent');
-  const [view, setView] = useState<'covers' | 'shelf'>('covers');
+  const [view, setView] = useState<'covers' | 'shelf'>(() => {
+    try {
+      return localStorage.getItem(`entre-paginas-view:${ownerId}`) === 'covers'
+        ? 'covers'
+        : 'shelf';
+    } catch {
+      return 'shelf';
+    }
+  });
+  useEffect(() => {
+    try {
+      localStorage.setItem(`entre-paginas-view:${ownerId}`, view);
+    } catch {}
+  }, [ownerId, view]);
   const visible = visibleBooks(books, shelf, query, sort);
   const exploring = shelf === 'catalog' || shelf === 'wishlist';
   const current = shelves.find((item) => item.id === shelf) ?? {
@@ -299,6 +314,7 @@ export default function LibraryView({
                 onSelect={onSelect}
                 onAdd={onAdd}
                 onReload={onRetry}
+                onUpdated={onUpdated}
               />
             ) : visible.length ? (
               <div className="book-grid">
