@@ -205,22 +205,56 @@ export function bookItem(
     rotation: 0,
   };
 }
-export function decorItem(asset: string): SceneItem {
-  const category = decorations.find((entry) => entry[0] === asset)?.[2];
+/** A logical book slot, independent of zoom and screen size. */
+export function decorationUnit(books: DesignBook[]): number {
+  const widths = books
+    .map((book) => bookDimensions(book).width)
+    .sort((a, b) => a - b);
+  return widths.length ? widths[Math.floor(widths.length / 2)] : 40;
+}
+export function decorationSpan(item: SceneItem, unit = 40): 1 | 2 | 3 {
+  return Math.max(
+    1,
+    Math.min(3, Math.ceil((item.width * item.scale) / unit)),
+  ) as 1 | 2 | 3;
+}
+export function resizeDecoration(
+  item: SceneItem,
+  span: 1 | 2 | 3,
+  unit = 40,
+): SceneItem {
+  const width = unit * span;
   return {
-    id: sceneId('decor'),
-    kind: 'decor',
-    shelf_id: '',
-    x: 0,
-    width: category === 'divider' ? 28 : category === 'plant' ? 130 : 90,
-    height: category === 'plant' ? 190 : category === 'lamp' ? 175 : 125,
-    book_ids: [],
-    mode: 'upright',
-    asset,
-    color: category === 'plant' ? '#72865b' : '#b18a60',
+    ...item,
+    width,
+    height: Math.min(240, Math.round((width * 200) / 140)),
     scale: 1,
-    rotation: 0,
   };
+}
+export function decorItem(
+  asset: string,
+  span?: 1 | 2 | 3,
+  unit = 40,
+): SceneItem {
+  const category = decorations.find((entry) => entry[0] === asset)?.[2];
+  return resizeDecoration(
+    {
+      id: sceneId('decor'),
+      kind: 'decor',
+      shelf_id: '',
+      x: 0,
+      width: 0,
+      height: 0,
+      book_ids: [],
+      mode: 'upright',
+      asset,
+      color: category === 'plant' ? '#72865b' : '#b18a60',
+      scale: 1,
+      rotation: 0,
+    },
+    span ?? (category === 'divider' || category === 'candle' ? 1 : 2),
+    unit,
+  );
 }
 export const itemSize = (item: SceneItem) => ({
   width: item.width * item.scale,
@@ -305,7 +339,110 @@ export function placedIds(design: BookshelfDesign): number[] {
       .flatMap((item) => item.book_ids),
   );
 }
-/** Insert amongst books within a lane bounded by fixed decorations. */
+function insertionCenter(
+  design: BookshelfDesign,
+  item: SceneItem,
+  shelfId: string,
+  x: number,
+) {
+  const previous = design.items.find(
+    (other) =>
+      other.id === item.id && other.shelf_id === shelfId && other.x === x,
+  );
+  // Resizing keeps an item between its existing neighbors, even for narrow spines.
+  return x + itemSize(previous ?? item).width / 2;
+}
+/** Make room for an inserted item, carrying whole books/piles to following shelves. */
+function flowAroundItem(
+  design: BookshelfDesign,
+  item: SceneItem,
+  shelfId: string,
+  desiredX: number,
+): BookshelfDesign | null {
+  const shelves = shelfEntries(design);
+  const index = shelves.findIndex(({ shelf }) => shelf.id === shelfId);
+  const entry = shelves[index],
+    size = itemSize(item);
+  if (
+    !entry ||
+    !Number.isFinite(desiredX) ||
+    size.height > entry.shelf.height - 16
+  )
+    return null;
+  const center = insertionCenter(design, item, shelfId, desiredX);
+  let start = 8,
+    end = entry.bookcase.width - 8;
+  for (const obstacle of design.items.filter(
+    (other) =>
+      other.id !== item.id &&
+      other.kind === 'decor' &&
+      other.shelf_id === shelfId,
+  )) {
+    const right = obstacle.x + itemSize(obstacle).width;
+    if (center >= obstacle.x && center <= right) return null;
+    if (right < center) start = Math.max(start, right + 4);
+    if (obstacle.x > center) end = Math.min(end, obstacle.x - 4);
+  }
+  if (size.width > end - start) return null;
+  const row = design.items
+    .filter(
+      (other) =>
+        other.id !== item.id &&
+        other.kind !== 'decor' &&
+        other.shelf_id === shelfId,
+    )
+    .sort((a, b) => a.x - b.x);
+  const insertion = row.findIndex(
+    (other) => center <= other.x + itemSize(other).width / 2,
+  );
+  const prefix = row.slice(0, insertion < 0 ? row.length : insertion);
+  let carry = row.slice(prefix.length);
+  const maximumX = end - size.width;
+  while (
+    prefix.length &&
+    prefix.at(-1)!.x + itemSize(prefix.at(-1)!).width + 4 > maximumX
+  )
+    carry.unshift(prefix.pop()!);
+  const anchor = Math.max(
+    start,
+    Math.min(desiredX, maximumX),
+    prefix.length
+      ? prefix.at(-1)!.x + itemSize(prefix.at(-1)!).width + 4
+      : start,
+  );
+  const next = cloneDesign(design);
+  const displaced = new Set(carry.map((other) => other.id));
+  next.items = next.items.filter(
+    (other) => other.id !== item.id && !displaced.has(other.id),
+  );
+  if (!canPlace(next, item, shelfId, anchor)) return null;
+  next.items.push({ ...item, shelf_id: shelfId, x: anchor });
+  for (let target = index; target < shelves.length && carry.length; target++) {
+    const shelf = shelves[target].shelf;
+    if (target > index) {
+      const residents = next.items
+        .filter(
+          (other) => other.kind !== 'decor' && other.shelf_id === shelf.id,
+        )
+        .sort((a, b) => a.x - b.x);
+      const residentIds = new Set(residents.map((other) => other.id));
+      next.items = next.items.filter((other) => !residentIds.has(other.id));
+      carry = [...carry, ...residents];
+    }
+    let minimumX = target === index ? anchor + size.width + 4 : 8;
+    let placed = 0;
+    for (const book of carry) {
+      const x = firstSpace(next, book, shelf.id, minimumX);
+      if (x === null) break;
+      next.items.push({ ...book, shelf_id: shelf.id, x });
+      minimumX = x + itemSize(book).width + 4;
+      placed++;
+    }
+    carry = carry.slice(placed);
+  }
+  return carry.length ? null : next;
+}
+/** Insert amongst books; keep other decorations fixed and spill excess books safely. */
 export function dropItem(
   design: BookshelfDesign,
   item: SceneItem,
@@ -313,10 +450,12 @@ export function dropItem(
   desiredX: number,
 ): BookshelfDesign | null {
   const direct = placeItem(design, item, shelfId, desiredX);
-  if (direct || item.kind === 'decor') return direct;
+  if (direct) return direct;
+  if (item.kind === 'decor')
+    return flowAroundItem(design, item, shelfId, desiredX);
   const entry = shelfEntries(design).find(({ shelf }) => shelf.id === shelfId);
   if (!entry || itemSize(item).height > entry.shelf.height - 16) return null;
-  const center = desiredX + itemSize(item).width / 2;
+  const center = insertionCenter(design, item, shelfId, desiredX);
   let start = 8,
     end = entry.bookcase.width - 8;
   for (const obstacle of design.items.filter(
@@ -345,7 +484,8 @@ export function dropItem(
   const total =
     entries.reduce((sum, other) => sum + itemSize(other).width, 0) +
     (entries.length - 1) * 4;
-  if (total > end - start) return null;
+  if (total > end - start)
+    return flowAroundItem(design, item, shelfId, desiredX);
   const next = cloneDesign(design),
     movingIds = new Set(entries.map((other) => other.id));
   next.items = next.items.filter((other) => !movingIds.has(other.id));
@@ -378,8 +518,29 @@ export function refreshBookSizes(design: BookshelfDesign, books: DesignBook[]) {
     books.map((book) => book.book_id),
   );
   const byId = new Map(books.map((book) => [book.book_id, book]));
+  const maximumDecorWidth = decorationUnit(books) * 3;
   for (const item of next.items) {
-    if (item.kind === 'decor') continue;
+    if (item.kind === 'decor') {
+      const size = itemSize(item);
+      if (size.width > maximumDecorWidth || size.height > 240) {
+        const ratio = Math.min(
+          1,
+          maximumDecorWidth / size.width,
+          240 / size.height,
+        );
+        next.items = next.items.map((other) =>
+          other.id === item.id
+            ? {
+                ...item,
+                width: size.width * ratio,
+                height: size.height * ratio,
+                scale: 1,
+              }
+            : other,
+        );
+      }
+      continue;
+    }
     const entries = item.book_ids.map((id) => byId.get(id)!).filter(Boolean);
     const dimensions =
       item.kind === 'stack'
@@ -496,7 +657,7 @@ export function applyPreset(books: DesignBook[], id: string): BookshelfDesign {
         ? 0
         : 0.3;
     shelf.light.garland = preset.id === 'fantasy' || preset.id === 'warm';
-    const item = decorItem(preset.assets[i]);
+    const item = decorItem(preset.assets[i], undefined, decorationUnit(books));
     next =
       placeItem(
         next,

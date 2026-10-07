@@ -21,7 +21,7 @@ export default function Spine({
   const photo = imageUrl !== undefined ? imageUrl : signed;
   return (
     <span
-      className={`book-spine spine-pattern-${Math.abs(entry.book_id) % 4}`}
+      className={`book-spine spine-pattern-${Math.abs(entry.book_id) % 4} ${photo && !failed ? 'has-photo' : ''}`}
       style={
         {
           '--spine-color': style.color,

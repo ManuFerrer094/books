@@ -3,7 +3,13 @@
 import { readFile, readdir } from 'node:fs/promises';
 import { createRequire } from 'node:module';
 import assert from 'node:assert/strict';
-import { migrateDesign, stableJson } from '../dist/library/bookshelf-design.js';
+import {
+  decorItem,
+  designOrder,
+  dropItem,
+  migrateDesign,
+  stableJson,
+} from '../dist/library/bookshelf-design.js';
 const require = createRequire(import.meta.url);
 const {
   PGlite,
@@ -128,6 +134,27 @@ try {
   console.log(
     `500-book transaction: OK (${Math.round(performance.now() - started)} ms)`,
   );
+  const decorated = dropItem(
+    scene,
+    decorItem('fern', 3),
+    scene.bookcases[0].shelves[0].id,
+    8,
+  );
+  assert.ok(
+    decorated,
+    'The plant must fit by flowing books to following shelves',
+  );
+  assert.deepEqual(designOrder(decorated, ids), ids);
+  await db.query(
+    'SELECT public.save_bookshelf_design($1::integer[],1,$2::jsonb)',
+    [ids, JSON.stringify(decorated)],
+  );
+  const { rows: saved } = await db.query(
+    'SELECT design FROM public.user_bookshelf WHERE user_id=$1',
+    [owner],
+  );
+  assert.equal(stableJson(saved[0].design), stableJson(decorated));
+  console.log('500-book decoration insertion and cascade persistence: OK');
 } catch (error) {
   console.error(
     'Database verification failed:',
