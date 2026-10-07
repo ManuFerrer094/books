@@ -56,6 +56,7 @@ import {
 import { errorMessage } from './api';
 import { Dialog } from './components';
 import BookshelfScene, { DecorArt } from './BookshelfScene';
+import { decorationAssets, decorationColor } from './bookshelf-decor';
 import { useBookshelfStudio } from './useBookshelfStudio';
 import { exportBookshelf } from './bookshelf-export';
 import { spineStyle } from './bookshelf-layout';
@@ -1025,6 +1026,7 @@ export default function Bookshelf({
                               <DecorArt
                                 asset={preset.assets[0]}
                                 color="#809271"
+                                thumbnail
                               />
                             </svg>
                           </span>
@@ -1419,7 +1421,10 @@ export default function Bookshelf({
                           <input
                             type="color"
                             aria-label="Color del objeto"
-                            value={selectedItem.color}
+                            value={decorationColor(
+                              selectedItem.asset,
+                              selectedItem.color,
+                            )}
                             onChange={(e) =>
                               updateItem(
                                 { color: e.target.value },
@@ -1428,6 +1433,21 @@ export default function Bookshelf({
                             }
                           />
                         </label>
+                        <button
+                          className="text-button"
+                          onClick={() =>
+                            updateItem(
+                              {
+                                color:
+                                  decorationAssets[selectedItem.asset]
+                                    ?.naturalColor ?? '#b18a60',
+                              },
+                              'decor-color',
+                            )
+                          }
+                        >
+                          Recuperar material original
+                        </button>
                         <label className="field">
                           Espacio que ocupa
                           <select
@@ -1618,6 +1638,7 @@ export default function Bookshelf({
                         >
                           <DecorArt
                             asset={asset}
+                            thumbnail
                             color={
                               asset === 'fern' || asset === 'monstera'
                                 ? '#758969'
@@ -1628,6 +1649,14 @@ export default function Bookshelf({
                         </button>
                       ))}
                     </div>
+                    <a
+                      className="studio-decor-credits"
+                      href="/assets/decorations/credits.html"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                    >
+                      Recursos y autores
+                    </a>
                   </>
                 )}
                 {tab === 'books' && (

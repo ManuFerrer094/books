@@ -17,6 +17,11 @@ import {
 import { spineStyle, textColor } from './bookshelf-layout';
 import { supabase } from './supabase';
 import type { LibraryBook } from './types';
+import {
+  decorationAssets,
+  decorationColor,
+  decorationTintMatrix,
+} from './bookshelf-decor';
 
 const woods = {
   oak: ['#c59b66', '#8b613c', '#e3c493'],
@@ -86,7 +91,100 @@ function useScenePhotos(books: LibraryBook[]) {
   return { photos, ready };
 }
 
-export function DecorArt({ asset, color }: { asset: string; color: string }) {
+export function DecorArt({
+  asset,
+  color,
+  thumbnail = false,
+}: {
+  asset: string;
+  color: string;
+  thumbnail?: boolean;
+}) {
+  const id = useId().replace(/:/g, '');
+  const [failedAsset, setFailedAsset] = useState<string | null>(null);
+  const resource = decorationAssets[asset];
+  const failed = failedAsset === asset || !resource;
+  const tint = decorationColor(asset, color);
+  const recolored =
+    !thumbnail && resource && tint.toLowerCase() !== resource.naturalColor;
+  const src = resource && (thumbnail ? resource.thumbnail : resource.src);
+  const width = failed ? 140 : resource.width;
+  const height = failed ? 200 : resource.height;
+  const onError = () => setFailedAsset(asset);
+  return (
+    <svg
+      viewBox={`0 0 ${width} ${height}`}
+      width="100%"
+      height="100%"
+      preserveAspectRatio="xMidYMax meet"
+      aria-hidden="true"
+      data-decor-art={asset}
+      data-decoration-unavailable={failed ? 'true' : undefined}
+    >
+      {!failed && recolored && (
+        <defs>
+          <mask
+            id={`${id}-material`}
+            maskUnits="userSpaceOnUse"
+            x="0"
+            y="0"
+            width={width}
+            height={height}
+            style={{ maskType: 'alpha' }}
+          >
+            <image
+              href={resource.mask}
+              width={width}
+              height={height}
+              preserveAspectRatio="xMidYMax meet"
+              onError={onError}
+            />
+          </mask>
+          <filter
+            id={`${id}-tint`}
+            colorInterpolationFilters="sRGB"
+            x="0"
+            y="0"
+            width="100%"
+            height="100%"
+          >
+            <feColorMatrix
+              type="matrix"
+              values={decorationTintMatrix(tint, resource.naturalColor)}
+            />
+          </filter>
+        </defs>
+      )}
+      <g data-decor-fallback="true" display={failed ? 'inline' : 'none'}>
+        <FallbackDecorArt asset={asset} color={tint} />
+      </g>
+      {!failed && (
+        <g data-decor-resource="true">
+          <image
+            href={src}
+            width={width}
+            height={height}
+            preserveAspectRatio="xMidYMax meet"
+            onError={onError}
+          />
+          {recolored && (
+            <image
+              href={src}
+              width={width}
+              height={height}
+              preserveAspectRatio="xMidYMax meet"
+              filter={`url(#${id}-tint)`}
+              mask={`url(#${id}-material)`}
+              onError={onError}
+            />
+          )}
+        </g>
+      )}
+    </svg>
+  );
+}
+
+function FallbackDecorArt({ asset, color }: { asset: string; color: string }) {
   const category = decorations.find((entry) => entry[0] === asset)?.[2];
   const plant = category === 'plant';
   return (

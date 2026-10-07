@@ -10,6 +10,10 @@ export async function exportBookshelf(
     await new Promise((resolve) => window.setTimeout(resolve, 100));
   const copy = svg.cloneNode(true) as SVGSVGElement;
   const warnings: string[] = [];
+  const decorWarning =
+    'Una decoración no está disponible; se ha usado su dibujo de respaldo.';
+  if (copy.querySelector('[data-decoration-unavailable="true"]'))
+    warnings.push(decorWarning);
   if (
     svg.dataset.photosReady !== 'true' ||
     copy.querySelector('[data-photo-unavailable="true"]')
@@ -51,26 +55,49 @@ export async function exportBookshelf(
         .querySelectorAll(':scope > rect[stroke="#d5ac65"]')
         .forEach((selection) => selection.remove()),
     );
+  const resources = new Map<string, Promise<string>>();
+  const embed = (url: string) => {
+    if (!resources.has(url))
+      resources.set(
+        url,
+        (async () => {
+          const response = await fetch(url, {
+            signal: AbortSignal.timeout(20000),
+          });
+          if (!response.ok) throw new Error('Image unavailable');
+          const blob = await response.blob();
+          return new Promise<string>((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onload = () => resolve(String(reader.result));
+            reader.onerror = reject;
+            reader.readAsDataURL(blob);
+          });
+        })(),
+      );
+    return resources.get(url)!;
+  };
   await Promise.all(
     Array.from(copy.querySelectorAll('image')).map(async (image) => {
       try {
-        const response = await fetch(image.getAttribute('href')!, {
-          signal: AbortSignal.timeout(20000),
-        });
-        if (!response.ok) throw new Error('Image unavailable');
-        const blob = await response.blob();
-        const data = await new Promise<string>((resolve, reject) => {
-          const reader = new FileReader();
-          reader.onload = () => resolve(String(reader.result));
-          reader.onerror = reject;
-          reader.readAsDataURL(blob);
-        });
+        const data = await embed(image.getAttribute('href')!);
         image.setAttribute('href', data);
       } catch {
+        const decor = image.closest('[data-decor-art]');
+        if (decor) {
+          decor.setAttribute('viewBox', '0 0 140 200');
+          decor
+            .querySelector('[data-decor-fallback]')
+            ?.setAttribute('display', 'inline');
+          decor
+            .querySelector('[data-decor-resource]')
+            ?.setAttribute('display', 'none');
+          warnings.push(decorWarning);
+        } else {
+          warnings.push(
+            'Una fotografía no está disponible; se ha usado la apariencia automática del libro.',
+          );
+        }
         image.remove();
-        warnings.push(
-          'Una fotografía no está disponible; se ha usado la apariencia automática del libro.',
-        );
       }
     }),
   );

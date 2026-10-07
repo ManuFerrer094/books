@@ -377,9 +377,9 @@ svg.bookshelf-scene.is-designing {
   align-items: center;
   justify-content: end;
   border: 1px solid #e0e2d4;
-  border-radius: 7px;
-  background: #fffef6;
-  min-height: 100px;
+  border-radius: 10px;
+  background: linear-gradient(155deg, #fffefa, #f0ede5);
+  min-height: 126px;
   padding: 8px 4px;
   cursor: pointer;
 }
@@ -388,14 +388,22 @@ svg.bookshelf-scene.is-designing {
   border-color: #a4b08e;
 }
 .studio-decor-grid svg {
-  width: 46px;
-  height: 62px;
+  width: min(100%, 74px);
+  height: 88px;
   margin-bottom: 7px;
+  filter: drop-shadow(0 4px 3px #4d41321a);
 }
 .studio-decor-grid span {
-  font-size: 9px;
+  font-size: 10px;
   line-height: 1.4;
   color: #777f67;
+}
+.studio-decor-credits {
+  display: inline-block;
+  margin-top: 16px;
+  font-size: 11px;
+  color: #777f67;
+  text-underline-offset: 3px;
 }
 .studio-checkbox {
   display: flex;

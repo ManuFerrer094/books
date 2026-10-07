@@ -52,9 +52,9 @@ export interface BookshelfDesign {
 }
 export const decorations = [
   ['fern', 'Helecho', 'plant'],
-  ['monstera', 'Monstera', 'plant'],
-  ['ivy', 'Hiedra', 'plant'],
-  ['cactus', 'Cactus', 'plant'],
+  ['monstera', 'Planta tropical', 'plant'],
+  ['ivy', 'Planta de interior', 'plant'],
+  ['cactus', 'Suculenta', 'plant'],
   ['flowers', 'Flores silvestres', 'plant'],
   ['bonsai', 'Bonsái', 'plant'],
   ['pot', 'Maceta terracota', 'pot'],
