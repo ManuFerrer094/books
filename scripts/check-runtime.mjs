@@ -10,6 +10,10 @@ const { default: handler } = await import('../dist/main.js');
 await request(handler).get('/api').expect(200).expect('Hello World!');
 await request(handler).get('/api/docs/').expect(200);
 await request(handler).get('/api/me/books').expect(401);
+await request(handler)
+  .put('/api/me/bookshelf')
+  .send({ book_ids: [], revision: 0, design: { padding: 'x'.repeat(180000) } })
+  .expect(401);
 await request(handler).get('/api/catalog').expect(401);
 await request(handler).get('/api/me/wishlist').expect(401);
 await request(handler).get('/api/me/account/export').expect(401);

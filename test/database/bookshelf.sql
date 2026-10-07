@@ -105,7 +105,8 @@ DO $$ DECLARE affected bigint; BEGIN
   DELETE FROM storage.objects WHERE bucket_id = 'book-spines';
   GET DIAGNOSTICS affected = ROW_COUNT;
   IF affected <> 1 THEN RAISE EXCEPTION 'Cannot clean up a photo after removing its library entry'; END IF;
-  PERFORM public.save_bookshelf_order(ARRAY[current_setting('test.own_book')::integer], 1);
+  PERFORM public.save_bookshelf_order(ARRAY[current_setting('test.own_book')::integer],
+    (SELECT revision FROM public.user_bookshelf));
 END $$;
 RESET ROLE;
 ROLLBACK;

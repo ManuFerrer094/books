@@ -1,5 +1,13 @@
 # Desplegar en Vercel Services
 
+## Estudio de estanterías
+
+Antes de publicar esta versión, aplica una vez [008_bookshelf_studio.sql](src/books/database/migrations/008_bookshelf_studio.sql), después de 001–007. Añade `user_bookshelf.design`, su validación y la función `save_bookshelf_design`, conservando orden, revisiones, libros y fotos existentes. No necesita nuevos buckets ni variables de la aplicación. Publica después API y frontend del mismo cambio.
+
+Verifica en una base de pruebas: `psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f test/database/bookshelf-studio.sql`. Los datos de la prueba se revierten. Para comprobar todas las migraciones en PostgreSQL local, sin tocar Supabase, instala una herramienta de pruebas opcional con `npm install --prefix .tmp/sql-check --no-save --package-lock=false @electric-sql/pglite`, compila el backend y ejecuta `node scripts/check-bookshelf-studio.mjs`. El script recrea auth/Storage mínimos, aplica 001–008, comprueba la conversión de una biblioteca anterior con fotos, ejecuta las nueve pruebas SQL y guarda una escena de 500 libros en una base efímera.
+
+Después de publicar, comprueba iniciar sesión con una biblioteca anterior, guardar una decoración, recargar en otro dispositivo, resolver un conflicto y exportar un PNG con una foto privada. La reversión debe conservar la columna `design` y sus datos; evita ejecutar clientes antiguos contra una API que no conoce el campo del estudio.
+
 ## Versión de Node.js
 
 El backend fija Node.js `24.x` y `type: module` en `package.json`. NestJS 12 publica módulos ESM; TypeScript compila el backend como ESM con imports relativos terminados en `.js`. Vercel desactiva por defecto el soporte de `require()` para ESM, por lo que fijar Node.js 24 sin migrar la compilación no evita `ERR_REQUIRE_ESM`. No hace falta activar ese soporte mediante `NODE_OPTIONS`.

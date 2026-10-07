@@ -7,6 +7,7 @@ import { AccountService } from './account.service.js';
 import { AuthClientFactory } from '../auth/auth-client.factory.js';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { AuthRequest } from '../auth/auth.guard.js';
+import { migrateDesign } from '../library/bookshelf-design.js';
 
 describe('AccountService', () => {
   const owner = '11111111-1111-4111-8111-111111111111';
@@ -153,6 +154,7 @@ describe('AccountService', () => {
     );
   });
   it('exports complete private data with the user token, never with the admin client', async () => {
+    const design = migrateDesign([{ book_id: 7 }]);
     const chains: Record<string, any> = {};
     const row = {
       user_id: owner,
@@ -167,7 +169,7 @@ describe('AccountService', () => {
         query[method] = jest.fn().mockReturnValue(query);
       query.range = jest.fn<any>().mockResolvedValue({ data: [], error: null });
       query.maybeSingle = jest.fn<any>().mockResolvedValue({
-        data: { book_ids: [7], revision: 1 },
+        data: { book_ids: [7], revision: 1, design },
         error: null,
       });
       chains[table] = query;
@@ -195,6 +197,7 @@ describe('AccountService', () => {
     expect(result.books[0]).not.toHaveProperty('user_id');
     expect(result.wishlist[0].book.title).toBe('Book');
     expect(result.account).toEqual({ id: owner, email: identity.user.email });
+    expect(result.bookshelf).toEqual({ book_ids: [7], revision: 1, design });
     expect(create).toHaveBeenCalledWith('reader-token');
     for (const query of Object.values(chains))
       expect(query.eq).toHaveBeenCalledWith('user_id', owner);

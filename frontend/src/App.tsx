@@ -261,6 +261,7 @@ export default function App() {
           setSelected(null);
           setAccountOpen(true);
         }}
+        onUpdated={upsert}
       />
       {accountOpen && (
         <AccountSettings

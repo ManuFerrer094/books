@@ -48,13 +48,19 @@ En Supabase → Authentication → URL Configuration, añade `http://localhost:5
 - **Explorar catálogo** permite ver y buscar todos los libros compartidos de la plataforma, por páginas, sin mostrar propietarios ni información personal.
 - **Guardar deseo** añade una ficha a tu **Lista de deseos**, el último estante de **Mis estantes**. Puedes consultar su detalle y quitar el deseo; estas acciones no añaden ni retiran libros de tu biblioteca.
 - Consultar la ficha y quitar un libro de tu biblioteca mediante confirmación.
-- Cambiar entre **Portadas** (vista inicial) y **Estantería**, con baldas de madera y lomos que se adaptan al ancho de pantalla.
-- En **Todos mis libros**, sin búsqueda, pulsar **Ordenar estantería** y arrastrar el asa de los lomos con ratón o pantalla táctil. También puedes usar las flechas de cada libro o enfocar el asa y pulsar las teclas ←/→. El orden se guarda en tu cuenta.
+- Abrir en **Estantería** y cambiar a **Portadas** cuando prefieras; la elección se recuerda por cuenta.
+- Pulsar **Diseñar** para elegir entre seis ambientes, crear muebles y baldas, decorar con 27 objetos y configurar material, pared, luces y guirnaldas. El diseño conserva sus posiciones entre móvil y ordenador; puedes ampliarlo o recorrerlo.
+- Arrastrar libros y objetos con ratón o pantalla táctil, o seleccionarlos y usar las flechas del inspector/teclado. Insertar un libro en una fila ocupada previsualiza su nuevo lugar conservando la decoración. Los libros admiten lomos verticales, inclinación, portadas y pilas horizontales.
+- Seleccionar libros en **Libros** y previsualizar su organización por título, autor, color o estado. Deshacer y rehacer permiten recuperar composiciones anteriores. Los filtros resaltan coincidencias sin moverlas.
+- Usar **Capturar varios lomos** para fotografiar una fila, girar/enderezar, marcar recortes y asignarlos a libros. Se revisan todos antes de guardar y se reintentan solo los pendientes.
+- Descargar PNG de hasta 4096 píxeles del conjunto o de un mueble, en formato original, cuadrado o vertical. La imagen incluye las fotos privadas y se prepara localmente.
 - Abrir la ficha y pulsar **Personalizar lomo** para ajustar color, grosor y altura, elegir una imagen o pulsar **Hacer foto** para usar la cámara del móvil. Se admiten JPEG, PNG y WebP de hasta 5 MB.
 - Al elegir o hacer una foto se abre automáticamente el recorte: verás la fotografía completa y el resultado del lomo a la vez. Arrastra el marco, sus esquinas o sus bordes para quitar la mano y el fondo; la vista previa cambia al instante. Puedes girar 90°, enderezar la imagen y abrir los ajustes precisos para ampliar o desplazar la selección. Los controles también admiten las teclas de dirección (Shift para pasos mayores).
 - Pulsa **Usar este recorte** y después **Guardar lomo**. **Volver a recortar** conserva la foto original y la selección mientras editas; no necesitas transformar la foto fuera de la app. **Restaurar aspecto automático** elimina tus ajustes y la foto al guardar.
 
-Antes de desplegar esta versión, aplica la [migración 003](../src/books/database/migrations/003_bookshelf.sql) después de las migraciones 001 y 002. Crea los campos personales, la tabla de orden y el bucket privado `book-spines` con sus políticas RLS. No requiere nuevas variables de entorno. Las baldas son automáticas: el mismo orden puede ocupar distintas filas en móvil y ordenador. Los libros nuevos se colocan al final y los retirados desaparecen del orden.
+El estudio requiere las migraciones 001–008. La [migración 003](../src/books/database/migrations/003_bookshelf.sql) crea los campos personales y el bucket privado de lomos; la [migración 008](../src/books/database/migrations/008_bookshelf_studio.sql) añade el diseño y su guardado transaccional. No requiere nuevas variables de aplicación. Convierte las bibliotecas anteriores a baldas de anchura lógica fija, conservando orden, revisiones y fotos. Los libros nuevos aparecen en **Por colocar**; eliminar baldas o muebles libera sus libros sin retirarlos de la biblioteca. La incorporación o retirada de libros actualiza la revisión y conserva la decoración.
+
+El guardado automático conserva un borrador por cuenta en la sesión del navegador si falla la conexión. Puedes reintentar sin perderlo. Si otra sesión ha guardado una versión distinta, se muestran ambas para elegir. Deshacer/rehacer pertenece a la sesión de edición; el diseño confirmado se guarda en Supabase.
 
 Los cambios se guardan en la API, no solo en el navegador. Añadir el mismo libro vuelve a mostrar su relación existente sin duplicarla ni modificar su estado de lectura. Quitar un libro elimina únicamente su relación con tu biblioteca.
 
@@ -85,6 +91,8 @@ npm run test:e2e
 El repositorio incluye una [configuración de Vercel Services](../DEPLOYMENT.md): frontend en `/` y Nest en `/api`, con llamadas desde el navegador al mismo dominio. En Vercel y con `vercel dev`, Nest recibe y acepta el prefijo `/api` y Vite no utiliza su proxy local. No se necesitan bindings para la aplicación estática.
 
 Fuera de Vercel, el proxy local de Vite reenvía `/api/*` al backend independiente quitando el prefijo `/api`. Si publicas la API en otro origen y cambias `VITE_API_URL`, tendrás que permitir ese origen mediante CORS en Nest. `npm run preview` solo sirve para revisar los archivos compilados, sin proxy a la API.
+
+Para ejecutar Playwright sobre la compilación de producción, compila primero y usa `PLAYWRIGHT_PREVIEW=1 npm run test:e2e`. Las pruebas simulan la API y el servidor de preview se abre en el puerto 5174; así no interfieren las recargas del servidor de desarrollo.
 
 Las fuentes gratuitas DM Sans y Lora se sirven desde `public/fonts/`, junto con sus licencias. Los datos de libros y las portadas dependen de la disponibilidad de los catálogos; las portadas ausentes tienen una cubierta de texto.
 

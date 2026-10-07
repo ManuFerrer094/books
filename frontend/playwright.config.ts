@@ -1,10 +1,13 @@
 import { defineConfig, devices } from '@playwright/test';
 
+const preview = process.env.PLAYWRIGHT_PREVIEW === '1';
+const baseURL = preview ? 'http://localhost:5174' : 'http://localhost:5173';
+
 export default defineConfig({
   testDir: './e2e',
   fullyParallel: true,
   use: {
-    baseURL: 'http://localhost:5173',
+    baseURL,
     trace: 'retain-on-failure',
     launchOptions: process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE
       ? { executablePath: process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE }
@@ -18,8 +21,10 @@ export default defineConfig({
     },
   ],
   webServer: {
-    command: 'npm run dev -- --host 127.0.0.1',
-    url: 'http://localhost:5173',
+    command: preview
+      ? 'npm run preview -- --host 127.0.0.1 --port 5174'
+      : 'npm run dev -- --host 127.0.0.1',
+    url: baseURL,
     reuseExistingServer: !process.env.CI,
   },
 });
