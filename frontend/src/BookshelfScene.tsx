@@ -5,6 +5,7 @@ import {
   useState,
   type PointerEvent,
   type Ref,
+  type CSSProperties,
 } from 'react';
 import {
   sceneGeometry,
@@ -582,13 +583,110 @@ function BookArt({
   );
 }
 
+function BookInHand({
+  entry,
+  photos,
+  width,
+  height,
+  depth,
+  progress,
+  tilt,
+  restAngle,
+  typography,
+  onOpen,
+}: {
+  entry: LibraryBook;
+  photos: Record<string, string>;
+  width: number;
+  height: number;
+  depth: number;
+  progress: number;
+  tilt: number;
+  restAngle: number;
+  typography: string;
+  onOpen?: (id: number) => void;
+}) {
+  const [ready, setReady] = useState(false);
+  useEffect(() => {
+    const frame = requestAnimationFrame(() => setReady(true));
+    return () => cancelAnimationFrame(frame);
+  }, []);
+  const p = ready ? progress : 0;
+  return (
+    <div
+      className="book-in-hand-stage"
+      style={
+        {
+          '--book-width': `${width}px`,
+          '--book-height': `${height}px`,
+          '--book-depth': `${depth}px`,
+          '--book-angle': `${restAngle * (1 - p)}deg`,
+          '--book-tilt': `${tilt * (1 - p)}deg`,
+          '--book-rise': `${-(tilt ? height * 0.55 : 36) * p}px`,
+          '--book-scale': 1 + p * 0.24,
+          '--book-color': spineStyle(entry).color,
+        } as CSSProperties
+      }
+    >
+      <button
+        type="button"
+        className="book-in-hand"
+        aria-label={`Abrir ficha de ${entry.book.title}`}
+        onClick={() => onOpen?.(entry.book_id)}
+      >
+        <span className="book-in-hand-face book-in-hand-front">
+          <svg
+            viewBox={`0 0 ${width} ${height}`}
+            width={width}
+            height={height}
+            aria-hidden="true"
+          >
+            <BookArt
+              entry={entry}
+              mode="cover"
+              width={width}
+              height={height}
+              photos={photos}
+              typography={typography}
+            />
+          </svg>
+        </span>
+        <span className="book-in-hand-face book-in-hand-spine">
+          <svg
+            viewBox={`0 0 ${depth} ${height}`}
+            width={depth}
+            height={height}
+            aria-hidden="true"
+          >
+            <BookArt
+              entry={entry}
+              mode="upright"
+              width={depth}
+              height={height}
+              photos={photos}
+              typography={typography}
+            />
+          </svg>
+        </span>
+        <span className="book-in-hand-face book-in-hand-pages" />
+        <span className="book-in-hand-face book-in-hand-back" />
+      </button>
+    </div>
+  );
+}
+
 export interface SceneProps {
   design: BookshelfDesign;
   books: LibraryBook[];
   selected?: string[];
   highlighted?: Set<number>;
   designing?: boolean;
-  onSelect?: (item: SceneItem, additive: boolean) => void;
+  onSelect?: (
+    item: SceneItem,
+    additive: boolean,
+    bookId?: number,
+    direct?: boolean,
+  ) => void;
   onOpen?: (id: number) => void;
   onPointerDown?: (event: PointerEvent<SVGGElement>, item: SceneItem) => void;
   preview?: {
@@ -599,6 +697,7 @@ export interface SceneProps {
   } | null;
   svgRef?: Ref<SVGSVGElement>;
   caseId?: string;
+  inspection?: { bookId: number; progress: number } | null;
 }
 export default function BookshelfScene({
   design,
@@ -612,6 +711,7 @@ export default function BookshelfScene({
   preview,
   svgRef,
   caseId,
+  inspection,
 }: SceneProps) {
   const uid = useId().replace(/:/g, ''),
     { photos, ready } = useScenePhotos(books),
@@ -661,19 +761,46 @@ export default function BookshelfScene({
             : undefined
         }
         transform={`translate(${x} ${y})`}
-        opacity={ghost ? 0.6 : matching ? 1 : 0.22}
-        role={ghost || !interactive ? undefined : 'button'}
-        tabIndex={ghost || !interactive ? undefined : 0}
+        opacity={
+          !ghost &&
+          inspection?.bookId === item.book_ids[0] &&
+          item.kind === 'book'
+            ? 0
+            : ghost
+              ? 0.6
+              : matching
+                ? 1
+                : 0.22
+        }
+        pointerEvents={
+          !ghost &&
+          inspection?.bookId === item.book_ids[0] &&
+          item.kind === 'book'
+            ? 'none'
+            : undefined
+        }
+        role={
+          ghost || !interactive
+            ? undefined
+            : item.kind === 'stack'
+              ? 'group'
+              : 'button'
+        }
+        tabIndex={
+          ghost || !interactive ? undefined : item.kind === 'stack' ? -1 : 0
+        }
         aria-label={
           ghost || !interactive
             ? undefined
             : `${designing ? 'Seleccionar' : 'Ver'} ${label}`
         }
         aria-pressed={
-          designing && !ghost ? selectedSet.has(item.id) : undefined
+          designing && !ghost && item.kind !== 'stack'
+            ? selectedSet.has(item.id)
+            : undefined
         }
         onClick={
-          ghost
+          ghost || item.kind === 'stack'
             ? undefined
             : (event) =>
                 designing
@@ -686,13 +813,18 @@ export default function BookshelfScene({
                     : undefined
         }
         onKeyDown={
-          ghost
+          ghost || item.kind === 'stack'
             ? undefined
             : (event) => {
                 if (event.key === 'Enter' || event.key === ' ') {
                   event.preventDefault();
                   designing
-                    ? onSelect?.(item, event.shiftKey)
+                    ? onSelect?.(
+                        item,
+                        event.shiftKey || event.ctrlKey || event.metaKey,
+                        undefined,
+                        true,
+                      )
                     : item.book_ids.length && onOpen?.(item.book_ids[0]);
                 }
               }
@@ -737,35 +869,89 @@ export default function BookshelfScene({
               (sum, entry) => sum + spineStyle(entry).width,
               0,
             );
+            const longest = Math.max(
+              ...entries.map((entry) => spineStyle(entry).height),
+            );
             return entries.map((entry, i) => {
               const h = (spineStyle(entry).width / total) * height;
+              const w = (spineStyle(entry).height / longest) * (width - 4);
               bottom -= h;
               return (
                 <g
                   key={entry.book_id}
+                  className="scene-item"
+                  data-shelf-book={
+                    interactive && !ghost ? entry.book_id : undefined
+                  }
                   transform={`translate(${i % 2 ? 4 : 0} ${bottom})`}
+                  opacity={
+                    !ghost && inspection?.bookId === entry.book_id
+                      ? 0
+                      : !highlighted ||
+                          highlighted.has(entry.book_id) ||
+                          !matching
+                        ? 1
+                        : 0.22
+                  }
+                  pointerEvents={
+                    !ghost && inspection?.bookId === entry.book_id
+                      ? 'none'
+                      : undefined
+                  }
+                  role={interactive && !ghost ? 'button' : undefined}
+                  tabIndex={interactive && !ghost ? 0 : undefined}
+                  aria-label={
+                    interactive && !ghost
+                      ? `${designing ? 'Seleccionar' : 'Ver'} ${entry.book.title}`
+                      : undefined
+                  }
+                  aria-pressed={
+                    designing && !ghost ? selectedSet.has(item.id) : undefined
+                  }
+                  onClick={
+                    ghost || !interactive
+                      ? undefined
+                      : (event) => {
+                          event.stopPropagation();
+                          if (designing)
+                            onSelect?.(
+                              item,
+                              event.shiftKey || event.ctrlKey || event.metaKey,
+                              entry.book_id,
+                            );
+                          else onOpen?.(entry.book_id);
+                        }
+                  }
+                  onKeyDown={
+                    ghost || !interactive
+                      ? undefined
+                      : (event) => {
+                          if (event.key !== 'Enter' && event.key !== ' ')
+                            return;
+                          event.preventDefault();
+                          event.stopPropagation();
+                          if (designing)
+                            onSelect?.(
+                              item,
+                              event.shiftKey || event.ctrlKey || event.metaKey,
+                              entry.book_id,
+                              true,
+                            );
+                          else onOpen?.(entry.book_id);
+                        }
+                  }
                 >
-                  <rect
-                    width={width - 4}
-                    height={h}
-                    rx="2"
-                    fill={spineStyle(entry).color}
-                  />
-                  <path d={`M3 3H${width - 7}`} stroke="#ffffff35" />
-                  <text
-                    x={width / 2}
-                    y={h / 2 + 3}
-                    textAnchor="middle"
-                    fill={textColor(spineStyle(entry).color)}
-                    fontSize="9"
-                    textLength={Math.min(
-                      width - 20,
-                      entry.book.title.length * 5,
-                    )}
-                    lengthAdjust="spacingAndGlyphs"
-                  >
-                    {entry.book.title.slice(0, 50)}
-                  </text>
+                  <title>{entry.book.title}</title>
+                  <g transform={`translate(0 ${h}) rotate(-90)`}>
+                    <BookArt
+                      entry={entry}
+                      mode="upright"
+                      width={h}
+                      height={w}
+                      photos={photos}
+                      typography={item.asset || 'classic'}
+                    />
+                  </g>
                 </g>
               );
             });
@@ -806,6 +992,75 @@ export default function BookshelfScene({
           />
         )}
       </g>
+    );
+  }
+  function renderInspection() {
+    if (!inspection || !interactive) return null;
+    const item = design.items.find((item) =>
+      item.book_ids.includes(inspection.bookId),
+    );
+    const entry = bookMap.get(inspection.bookId);
+    const shelf = geometry.shelves.find(
+      (shelf) => shelf.shelf.id === item?.shelf_id,
+    );
+    if (!item || !entry || !shelf) return null;
+    const size = itemSize(item);
+    let height = size.height,
+      depth = spineStyle(entry).width * item.scale;
+    let cx = shelf.x + item.x + size.width / 2,
+      cy = shelf.bottom - size.height / 2;
+    if (item.kind === 'stack') {
+      const entries = item.book_ids
+        .map((id) => bookMap.get(id))
+        .filter((book): book is LibraryBook => !!book);
+      const total = entries.reduce(
+        (sum, book) => sum + spineStyle(book).width,
+        0,
+      );
+      const longest = Math.max(
+        ...entries.map((book) => spineStyle(book).height),
+      );
+      let bottom = size.height;
+      for (const [i, book] of entries.entries()) {
+        const h = (spineStyle(book).width / total) * size.height;
+        bottom -= h;
+        if (book.book_id !== entry.book_id) continue;
+        height = (spineStyle(book).height / longest) * (size.width - 4);
+        depth = h;
+        cx = shelf.x + item.x + (i % 2 ? 4 : 0) + height / 2;
+        cy = shelf.bottom - size.height + bottom + h / 2;
+        break;
+      }
+    }
+    const width =
+      item.kind === 'book' && item.mode === 'cover'
+        ? size.width
+        : (height * 2) / 3;
+    return (
+      <foreignObject
+        x={cx - width}
+        y={cy - height}
+        width={width * 2}
+        height={height * 2}
+        className="book-in-hand-overlay"
+        data-held-book={entry.book_id}
+        data-pull-progress={inspection.progress}
+        onPointerDown={(event) => event.stopPropagation()}
+      >
+        <BookInHand
+          key={entry.book_id}
+          entry={entry}
+          photos={photos}
+          width={width}
+          height={height}
+          depth={depth}
+          progress={inspection.progress}
+          tilt={item.kind === 'stack' ? -90 : 0}
+          restAngle={item.kind === 'book' && item.mode === 'cover' ? 0 : 90}
+          typography={item.asset || 'classic'}
+          onOpen={onOpen}
+        />
+      </foreignObject>
     );
   }
   return (
@@ -1086,6 +1341,7 @@ export default function BookshelfScene({
         </g>
       ))}
       {preview && renderItem(preview.item, true)}
+      {renderInspection()}
     </svg>
   );
 }
