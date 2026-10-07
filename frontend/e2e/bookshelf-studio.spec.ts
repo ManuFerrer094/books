@@ -48,6 +48,9 @@ test('estudio: arrastre con ratón y táctil entre baldas conserva la colocació
     await page.mouse.down();
     await page.mouse.move(target.x, target.y, { steps: 6 });
     await expect(scene(page).locator('rect[stroke="#91c5a2"]')).toBeVisible();
+    expect(await page.evaluate(() => window.getSelection()?.toString())).toBe(
+      '',
+    );
     await page.mouse.up();
   }
   await expect.poll(() => mock.getLayout().revision).toBe(1);
@@ -92,6 +95,134 @@ test('estudio: arrastre con ratón y táctil entre baldas conserva la colocació
   await page.reload();
   await expect(scene(page).locator('[data-shelf-book]')).toHaveCount(8);
   expect(mock.getLayout().design).toEqual(saved);
+});
+
+test('estudio: una planta abre hueco entre libros y el sobrante pasa a las baldas siguientes', async ({
+  page,
+  isMobile,
+}) => {
+  const mock = await setup(page, { count: 44 });
+  await login(page, false);
+  await design(page);
+  await page.getByRole('tab', { name: 'Objetos', exact: true }).click();
+  const shelves = mock.getLayout().design!.bookcases[0].shelves;
+  await page.getByLabel('Balda', { exact: true }).selectOption(shelves[2].id);
+  await page.getByRole('button', { name: 'Helecho', exact: true }).click();
+  await expect
+    .poll(
+      () =>
+        mock.getLayout().design!.items.filter((item) => item.kind === 'decor')
+          .length,
+    )
+    .toBe(1);
+  const plantId = mock
+    .getLayout()
+    .design!.items.find((item) => item.asset === 'fern')!.id;
+  await page.getByLabel('Tamaño del objeto', { exact: true }).selectOption('1');
+  await expect
+    .poll(
+      () =>
+        mock.getLayout().design!.items.find((item) => item.id === plantId)!
+          .width,
+    )
+    .toBe(39);
+  await page.getByLabel('Tamaño del objeto', { exact: true }).selectOption('3');
+  await expect
+    .poll(
+      () =>
+        mock.getLayout().design!.items.find((item) => item.id === plantId)!
+          .width,
+    )
+    .toBe(117);
+  await page.getByRole('button', { name: 'Reloj', exact: true }).click();
+  await expect
+    .poll(
+      () =>
+        mock.getLayout().design!.items.filter((item) => item.kind === 'decor')
+          .length,
+    )
+    .toBe(2);
+  await expect(page.locator('.studio-save')).toHaveText('Todo guardado');
+  const before = mock.getLayout().design!;
+  const clock = before.items.find((item) => item.asset === 'clock')!;
+  const plant = scene(page).locator(`[data-item-id="${plantId}"]`);
+  await scene(page).scrollIntoViewIfNeeded();
+  const bounds = (await plant.boundingBox())!;
+  const start = {
+    x: bounds.x + bounds.width / 2,
+    y: bounds.y + bounds.height / 2,
+  };
+  const target = await scene(page)
+    .locator('svg.bookshelf-scene')
+    .evaluate((node) => {
+      const point = new DOMPoint(117, 350).matrixTransform(
+        (node as SVGSVGElement).getScreenCTM()!,
+      );
+      return { x: point.x, y: point.y };
+    });
+  if (isMobile) {
+    const session = await page.context().newCDPSession(page);
+    await session.send('Input.dispatchTouchEvent', {
+      type: 'touchStart',
+      touchPoints: [start],
+    });
+    await session.send('Input.dispatchTouchEvent', {
+      type: 'touchMove',
+      touchPoints: [target],
+    });
+    await expect(scene(page).locator('rect[stroke="#91c5a2"]')).toBeVisible();
+    await session.send('Input.dispatchTouchEvent', {
+      type: 'touchEnd',
+      touchPoints: [],
+    });
+    await session.detach();
+  } else {
+    await page.mouse.move(start.x, start.y);
+    await page.mouse.down();
+    await page.mouse.move(target.x, target.y, { steps: 10 });
+    await expect(scene(page).locator('rect[stroke="#91c5a2"]')).toBeVisible();
+    expect(await page.evaluate(() => window.getSelection()?.toString())).toBe(
+      '',
+    );
+    await page.mouse.up();
+  }
+  await expect
+    .poll(
+      () =>
+        mock.getLayout().design!.items.find((item) => item.id === plantId)!
+          .shelf_id,
+    )
+    .toBe(shelves[0].id);
+  const moved = mock.getLayout().design!;
+  expect(
+    moved.items.filter(
+      (item) => item.kind === 'book' && item.shelf_id === shelves[0].id,
+    ),
+  ).toHaveLength(19);
+  expect(
+    moved.items.filter(
+      (item) => item.kind === 'book' && item.shelf_id === shelves[1].id,
+    ),
+  ).toHaveLength(22);
+  expect(
+    moved.items.filter(
+      (item) => item.kind === 'book' && item.shelf_id === shelves[2].id,
+    ),
+  ).toHaveLength(3);
+  expect(moved.items.find((item) => item.id === clock.id)).toEqual(clock);
+  expect(mock.getLayout().book_ids).toEqual(
+    before.items
+      .filter((item) => item.kind === 'book')
+      .map((item) => item.book_ids[0]),
+  );
+  await page.getByRole('button', { name: 'Deshacer', exact: true }).click();
+  await expect.poll(() => mock.getLayout().design).toEqual(before);
+  await page.getByRole('button', { name: 'Rehacer', exact: true }).click();
+  await expect.poll(() => mock.getLayout().design).toEqual(moved);
+  await expect(page.locator('.studio-save')).toHaveText('Todo guardado');
+  await page.reload();
+  await expect(scene(page).locator('[data-shelf-book]')).toHaveCount(44);
+  expect(mock.getLayout().design).toEqual(moved);
 });
 
 test('estudio: vista principal, composición estable, filtros, preferencia y edición por teclado', async ({

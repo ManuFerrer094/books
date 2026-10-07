@@ -705,7 +705,7 @@ async function shelfIds(page: Page) {
     );
 }
 async function setRange(page: Page, label: string, value: string) {
-  await page.getByLabel(label).evaluate((input, next) => {
+  await page.getByRole('slider', { name: label }).evaluate((input, next) => {
     Object.getOwnPropertyDescriptor(
       HTMLInputElement.prototype,
       'value',
@@ -849,6 +849,14 @@ test('lomos: la foto de cámara abre un recorte táctil que excluye la mano en t
         originalHeight,
       );
     },
+  );
+  // A tightly framed photo starts with its entire width; trim an edge before moving it.
+  await dragCropControl(
+    page,
+    isMobile,
+    'Ajustar borde derecho del recorte',
+    -16,
+    0,
   );
   const beforeX = Number(await frame.getAttribute('data-crop-x'));
   await dragCropControl(page, isMobile, 'Mover recorte', 7, 8);

@@ -34,6 +34,10 @@ import {
   cloneDesign,
   decorItem,
   dropItem,
+  decorationUnit,
+  decorationSpan,
+  resizeDecoration,
+  firstSpace,
   decorations,
   itemSize,
   materials,
@@ -189,6 +193,7 @@ export default function Bookshelf({
     ]),
   ];
   const bookMap = new Map(allBooks.map((book) => [book.book_id, book]));
+  const decorUnit = decorationUnit(allBooks);
   const placed = new Set(design ? placedIds(design) : []);
   const unplaced = allBooks.filter((book) => !placed.has(book.book_id));
   const filtering = books.length !== allBooks.length || preserveVisibleOrder;
@@ -225,7 +230,15 @@ export default function Bookshelf({
   }
   function put(item: SceneItem, preferred = currentShelf?.id) {
     if (!design) return;
-    const next = placeItem(design, item, preferred);
+    const next =
+      item.kind === 'decor' && preferred
+        ? dropItem(
+            design,
+            item,
+            preferred,
+            firstSpace(design, item, preferred) ?? 8,
+          )
+        : placeItem(design, item, preferred);
     if (next) {
       editable(next);
       setSelected([item.id]);
@@ -237,12 +250,8 @@ export default function Bookshelf({
   function updateItem(patch: Partial<SceneItem>, action = '') {
     if (!design || !selectedItem) return;
     const item = { ...selectedItem, ...patch };
-    if (canPlace(design, item, item.shelf_id, item.x))
-      changed((next) => {
-        next.items = next.items.map((entry) =>
-          entry.id === item.id ? item : entry,
-        );
-      }, action);
+    const next = dropItem(design, item, item.shelf_id, item.x);
+    if (next) editable(next, action);
     else
       setMessage(
         'Ese tamaño o posición no cabe. Haz espacio o elige otra balda.',
@@ -261,18 +270,27 @@ export default function Bookshelf({
         explicitItem.shelf_id,
         explicitItem.x + (direction === 'left' ? -4 : 4),
       );
-      if (!next && explicitItem.kind !== 'decor') {
+      if (!next) {
         const neighbors = design.items
           .filter(
             (item) =>
               item.shelf_id === explicitItem.shelf_id && item.kind !== 'decor',
           )
           .sort((a, b) => a.x - b.x);
+        const center = explicitItem.x + itemSize(explicitItem).width / 2;
         const neighbor =
-          neighbors[
-            neighbors.findIndex((item) => item.id === explicitItem.id) +
-              (direction === 'left' ? -1 : 1)
-          ];
+          explicitItem.kind === 'decor'
+            ? direction === 'left'
+              ? neighbors
+                  .filter((item) => item.x + itemSize(item).width / 2 < center)
+                  .at(-1)
+              : neighbors.find(
+                  (item) => item.x + itemSize(item).width / 2 > center,
+                )
+            : neighbors[
+                neighbors.findIndex((item) => item.id === explicitItem.id) +
+                  (direction === 'left' ? -1 : 1)
+              ];
         if (neighbor)
           next = dropItem(
             design,
@@ -290,7 +308,11 @@ export default function Bookshelf({
           ({ shelf }) => shelf.id === explicitItem.shelf_id,
         );
       const target = entries[index + (direction === 'up' ? -1 : 1)];
-      if (target) next = placeItem(design, explicitItem, target.shelf.id);
+      if (target)
+        next =
+          explicitItem.kind === 'decor'
+            ? dropItem(design, explicitItem, target.shelf.id, explicitItem.x)
+            : placeItem(design, explicitItem, target.shelf.id);
     }
     if (next) editable(next);
     else setMessage('No hay espacio en esa dirección.');
@@ -308,6 +330,8 @@ export default function Bookshelf({
     const p = point(event),
       shelf = geometry.shelves.find((s) => s.shelf.id === item.shelf_id);
     if (!p || !shelf) return;
+    event.preventDefault();
+    event.currentTarget.focus({ preventScroll: true });
     svg.current?.setPointerCapture(event.pointerId);
     drag.current = {
       item,
@@ -1260,21 +1284,25 @@ export default function Bookshelf({
                           />
                         </label>
                         <label className="field">
-                          Tamaño
-                          <input
-                            type="range"
-                            min="0.5"
-                            max="1.5"
-                            step="0.05"
+                          Espacio que ocupa
+                          <select
                             aria-label="Tamaño del objeto"
-                            value={selectedItem.scale}
+                            value={decorationSpan(selectedItem, decorUnit)}
                             onChange={(e) =>
                               updateItem(
-                                { scale: Number(e.target.value) },
+                                resizeDecoration(
+                                  selectedItem,
+                                  Number(e.target.value) as 1 | 2 | 3,
+                                  decorUnit,
+                                ),
                                 'decor-size',
                               )
                             }
-                          />
+                          >
+                            <option value="1">1 libro</option>
+                            <option value="2">2 libros</option>
+                            <option value="3">3 libros</option>
+                          </select>
                         </label>
                         <label className="field">
                           Orientación
@@ -1399,7 +1427,9 @@ export default function Bookshelf({
                         <button
                           key={asset}
                           title={label}
-                          onClick={() => put(decorItem(asset))}
+                          onClick={() =>
+                            put(decorItem(asset, undefined, decorUnit))
+                          }
                         >
                           <DecorArt
                             asset={asset}

@@ -6,6 +6,9 @@ import {
   canPlace,
   cloneDesign,
   decorItem,
+  decorationUnit,
+  decorationSpan,
+  resizeDecoration,
   dropItem,
   decorations,
   designOrder,
@@ -73,6 +76,140 @@ describe('persistent bookshelf geometry', () => {
   );
   it('has more than 24 own decorations', () =>
     expect(decorations.length).toBeGreaterThanOrEqual(24));
+  it('sizes decorations as one, two or three actual book widths', () => {
+    const unit = decorationUnit([
+      { book_id: 1, spine: { width: 28 } },
+      { book_id: 2, spine: { width: 64 } },
+      { book_id: 3, spine: { width: 28 } },
+    ]);
+    expect(unit).toBe(28);
+    for (const span of [1, 2, 3] as const) {
+      const item = decorItem('fern', span, unit);
+      expect(item.width).toBe(span * unit);
+      expect(decorationSpan(item, unit)).toBe(span);
+      expect(resizeDecoration(item, 3, unit).width).toBe(84);
+    }
+  });
+  it('makes room between books for a moved plant without moving other decorations', () => {
+    let original = migrateDesign(books.slice(0, 5));
+    const shelf = original.bookcases[0].shelves[0].id;
+    original = placeItem(original, decorItem('clock'), shelf, 600)!;
+    const plant = decorItem('fern');
+    original = placeItem(
+      original,
+      plant,
+      original.bookcases[0].shelves[1].id,
+      8,
+    )!;
+    const next = dropItem(original, plant, shelf, 11)!;
+    const first = next.items.find((item) => item.book_ids[0] === 1)!;
+    const inserted = next.items.find((item) => item.id === plant.id)!;
+    const second = next.items.find((item) => item.book_ids[0] === 2)!;
+    expect(first.x).toBe(8);
+    expect(inserted.x).toBe(first.x + first.width + 4);
+    expect(second.x).toBe(inserted.x + inserted.width + 4);
+    expect(next.items.find((item) => item.asset === 'clock')).toEqual(
+      original.items.find((item) => item.asset === 'clock'),
+    );
+    expect(placedIds(next)).toEqual([1, 2, 3, 4, 5]);
+    expect(() => validateDesign(next, [1, 2, 3, 4, 5])).not.toThrow();
+  });
+  it('cascades overflow through occupied shelves, preserving book order, decoration and the original snapshot', () => {
+    let original = migrateDesign(books.slice(0, 44));
+    const shelves = original.bookcases[0].shelves;
+    const plant = decorItem('fern', 3);
+    original = placeItem(original, plant, shelves[2].id, 500)!;
+    original = placeItem(original, decorItem('clock'), shelves[2].id, 700)!;
+    const before = cloneDesign(original);
+    const next = dropItem(original, plant, shelves[0].id, 8)!;
+    expect(next).not.toBeNull();
+    expect(
+      next.items.filter(
+        (item) => item.kind === 'book' && item.shelf_id === shelves[0].id,
+      ),
+    ).toHaveLength(19);
+    expect(
+      next.items.filter(
+        (item) => item.kind === 'book' && item.shelf_id === shelves[1].id,
+      ),
+    ).toHaveLength(22);
+    expect(
+      next.items.filter(
+        (item) => item.kind === 'book' && item.shelf_id === shelves[2].id,
+      ),
+    ).toHaveLength(3);
+    expect(placedIds(next)).toEqual(
+      books.slice(0, 44).map((book) => book.book_id),
+    );
+    expect(next.items.find((item) => item.asset === 'clock')).toEqual(
+      original.items.find((item) => item.asset === 'clock'),
+    );
+    expect(original).toEqual(before);
+    expect(() => validateDesign(next, placedIds(next))).not.toThrow();
+  });
+  it('moves a pile intact to the next shelf when a decoration takes its place', () => {
+    const original = emptyDesign();
+    original.bookcases[0].width = 320;
+    const shelves = original.bookcases[0].shelves;
+    original.items = [
+      { ...bookItem(books[0]), width: 40, shelf_id: shelves[0].id, x: 8 },
+      {
+        ...bookItem(books[1]),
+        kind: 'stack',
+        book_ids: [2, 3],
+        width: 200,
+        height: 80,
+        shelf_id: shelves[0].id,
+        x: 52,
+      },
+      { ...bookItem(books[3]), width: 40, shelf_id: shelves[1].id, x: 8 },
+    ];
+    const plant = decorItem('fern', 3);
+    const next = dropItem(original, plant, shelves[0].id, 8)!;
+    const stack = next.items.find((item) => item.kind === 'stack')!;
+    expect(stack.book_ids).toEqual([2, 3]);
+    expect(stack.shelf_id).toBe(shelves[1].id);
+    expect(placedIds(next)).toEqual([1, 2, 3, 4]);
+    expect(() => validateDesign(next, [1, 2, 3, 4])).not.toThrow();
+  });
+  it('enlarges a decoration in place without jumping past a neighboring thin book', () => {
+    const original = emptyDesign();
+    const shelf = original.bookcases[0].shelves[0].id;
+    const plant = { ...decorItem('fern', 1, 64), shelf_id: shelf, x: 40 };
+    original.items = [
+      { ...bookItem(books[0]), shelf_id: shelf, x: 8, width: 28 },
+      plant,
+      { ...bookItem(books[1]), shelf_id: shelf, x: 108, width: 28 },
+    ];
+    const enlarged = resizeDecoration(plant, 3, 64);
+    const next = dropItem(original, enlarged, shelf, plant.x)!;
+    expect(next.items.find((item) => item.id === plant.id)?.x).toBe(40);
+    expect(next.items.find((item) => item.book_ids[0] === 2)?.x).toBe(236);
+    expect(() => validateDesign(next, [1, 2])).not.toThrow();
+  });
+  it('rejects an insertion atomically when there is no space left and compacts old oversized decorations', () => {
+    const full = migrateDesign(books.slice(0, 66));
+    const before = cloneDesign(full);
+    expect(
+      dropItem(full, decorItem('fern', 3), full.bookcases[0].shelves[0].id, 8),
+    ).toBeNull();
+    expect(full).toEqual(before);
+    const original = placeItem(
+      migrateDesign(books.slice(0, 2)),
+      { ...decorItem('fern'), width: 130, height: 150, scale: 1.5 },
+      undefined,
+      500,
+    )!;
+    const compact = refreshBookSizes(original, books.slice(0, 2));
+    const plant = compact.items.find((item) => item.kind === 'decor')!;
+    expect(plant.width * plant.scale).toBe(
+      decorationUnit(books.slice(0, 2)) * 3,
+    );
+    expect(compact.items.filter((item) => item.kind === 'book')).toEqual(
+      original.items.filter((item) => item.kind === 'book'),
+    );
+    expect(() => validateDesign(compact, [1, 2])).not.toThrow();
+  });
   it('keeps assisted and legacy order when books have different heights and decorations leave small gaps', () => {
     const design = emptyDesign();
     design.bookcases[0].shelves[0].height = 190;

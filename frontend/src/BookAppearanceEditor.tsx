@@ -25,6 +25,16 @@ import Spine from './Spine';
 import SpinePhotoCropper from './SpinePhotoCropper';
 import { Cover } from './components';
 import type { LibraryBook, SpineAppearance } from './types';
+import {
+  drawPerspectiveSpine,
+  fitQuadToRect,
+  quadBounds,
+  rectQuad,
+  validQuad,
+  type SpineQuad,
+} from './spine-perspective';
+import { useSpineDetection } from './useSpineDetection';
+import SpineDetectionChoice from './SpineDetectionChoice';
 
 export default function BookAppearanceEditor({
   ownerId,
@@ -59,6 +69,9 @@ export default function BookAppearanceEditor({
   const [image, setImage] = useState<HTMLImageElement | null>(null);
   const [source, setSource] = useState<HTMLCanvasElement | null>(null);
   const [crop, setCrop] = useState<CropRect | null>(null);
+  const [quad, setQuad] = useState<SpineQuad | null>(null);
+  const quadRef = useRef(quad);
+  quadRef.current = quad;
   const [cropping, setCropping] = useState(false);
   const [rotation, setRotation] = useState(0);
   const [straighten, setStraighten] = useState(0);
@@ -75,6 +88,7 @@ export default function BookAppearanceEditor({
     image: HTMLImageElement;
     rotation: number;
     source: HTMLCanvasElement;
+    degrees: number;
   } | null>(null);
   const pending = useRef(false);
   const alive = useRef(false);
@@ -84,6 +98,15 @@ export default function BookAppearanceEditor({
     : spineStyle(preview);
   const ratio = useRef(style.width / style.height);
   ratio.current = style.width / style.height;
+  const detection = useSpineDetection(
+    source,
+    (selection) => {
+      setQuad(selection);
+      setCrop(quadBounds(selection));
+      setZoom(1);
+    },
+    !isCover,
+  );
   useEffect(() => {
     alive.current = true;
     return () => {
@@ -130,48 +153,101 @@ export default function BookAppearanceEditor({
     if (!image) {
       setSource(null);
       setCrop(null);
+      setQuad(null);
       previousTransform.current = null;
       return;
     }
     try {
       const prepared = prepareSpineImage(image, rotation + straighten);
       const previous = previousTransform.current;
-      setCrop((old) =>
-        old && previous?.image === image && previous.rotation === rotation
-          ? clampCrop(
-              {
-                ...old,
-                x: old.x + (prepared.width - previous.source.width) / 2,
-                y: old.y + (prepared.height - previous.source.height) / 2,
-              },
-              prepared,
-            )
-          : initialCrop(prepared, ratio.current),
-      );
+      if (!isCover) {
+        const whole = {
+          x: 0,
+          y: 0,
+          width: prepared.width,
+          height: prepared.height,
+        };
+        const photoRatio = prepared.width / prepared.height;
+        let selection = rectQuad(
+          photoRatio >= 0.055 && photoRatio <= 0.6
+            ? whole
+            : initialCrop(prepared, ratio.current),
+        );
+        if (photoRatio >= 1 / 0.6 && photoRatio <= 1 / 0.055) {
+          const points = rectQuad(whole);
+          selection = [points[1], points[2], points[3], points[0]];
+        }
+        if (
+          quadRef.current &&
+          previous?.image === image &&
+          previous.rotation === rotation
+        ) {
+          const angle =
+            ((rotation + straighten - previous.degrees) * Math.PI) / 180;
+          const transformed = quadRef.current.map((p) => {
+            const x = p.x - previous.source.width / 2,
+              y = p.y - previous.source.height / 2;
+            return {
+              x: prepared.width / 2 + x * Math.cos(angle) - y * Math.sin(angle),
+              y:
+                prepared.height / 2 + x * Math.sin(angle) + y * Math.cos(angle),
+            };
+          }) as SpineQuad;
+          if (validQuad(transformed, prepared)) selection = transformed;
+        }
+        setQuad(selection);
+        setCrop(quadBounds(selection));
+      } else
+        setCrop((old) =>
+          old && previous?.image === image && previous.rotation === rotation
+            ? clampCrop(
+                {
+                  ...old,
+                  x: old.x + (prepared.width - previous.source.width) / 2,
+                  y: old.y + (prepared.height - previous.source.height) / 2,
+                },
+                prepared,
+              )
+            : initialCrop(prepared, ratio.current),
+        );
       setSource(prepared);
-      previousTransform.current = { image, rotation, source: prepared };
+      previousTransform.current = {
+        image,
+        rotation,
+        source: prepared,
+        degrees: rotation + straighten,
+      };
       setZoom(1);
     } catch (cause) {
       setError(errorMessage(cause));
       setSource(null);
       setCrop(null);
     }
-  }, [image, rotation, straighten]);
+  }, [image, rotation, straighten, isCover]);
   useEffect(() => {
     if (source && crop && canvas.current) {
       try {
-        drawSpineSelection(
-          canvas.current,
-          source,
-          crop,
-          style.width / style.height,
-        );
+        if (!isCover && quad)
+          drawPerspectiveSpine(
+            canvas.current,
+            source,
+            quad,
+            style.width / style.height,
+            cropping ? 512 : 1024,
+          );
+        else
+          drawSpineSelection(
+            canvas.current,
+            source,
+            crop,
+            style.width / style.height,
+          );
       } catch (cause) {
         setError(errorMessage(cause));
         setSource(null);
       }
     }
-  }, [source, crop, style.width, style.height]);
+  }, [source, crop, quad, style.width, style.height, isCover, cropping]);
   useEffect(() => {
     if (image && cropping) {
       cropHeading.current?.scrollIntoView({
@@ -182,7 +258,18 @@ export default function BookAppearanceEditor({
     }
   }, [image, cropping]);
   function changeCrop(next: CropRect) {
+    if (!isCover && quad) {
+      detection.cancelDetection();
+      setQuad(fitQuadToRect(quad, next));
+    }
     setCrop(next);
+    setZoom(1);
+    setNotice('');
+  }
+  function changeQuad(next: SpineQuad) {
+    detection.cancelDetection();
+    setQuad(next);
+    setCrop(quadBounds(next));
     setZoom(1);
     setNotice('');
   }
@@ -196,6 +283,7 @@ export default function BookAppearanceEditor({
       setFile(next);
       setSource(null);
       setCrop(null);
+      setQuad(null);
       setCropping(true);
       setRotation(0);
       setStraighten(0);
@@ -260,7 +348,7 @@ export default function BookAppearanceEditor({
       !alive.current ||
       pending.current ||
       ambiguousPath ||
-      (file && (!source || !crop || cropping))
+      (file && (!source || !crop || cropping || detection.detecting))
     )
       return;
     pending.current = true;
@@ -273,12 +361,20 @@ export default function BookAppearanceEditor({
     try {
       const next = { ...appearance };
       if (file) {
-        drawSpineSelection(
-          canvas.current!,
-          source!,
-          crop!,
-          style.width / style.height,
-        );
+        if (!isCover && quad)
+          drawPerspectiveSpine(
+            canvas.current!,
+            source!,
+            quad,
+            style.width / style.height,
+          );
+        else
+          drawSpineSelection(
+            canvas.current!,
+            source!,
+            crop!,
+            style.width / style.height,
+          );
         const blob = await spinePhotoBlob(canvas.current!);
         const {
           data: { session },
@@ -369,7 +465,9 @@ export default function BookAppearanceEditor({
                 </h4>
                 <p>
                   {cropping
-                    ? 'Arrastra el marco y sus bordes para dejar fuera la mano y el fondo. Verás el resultado al instante.'
+                    ? isCover
+                      ? 'Arrastra el marco y sus bordes para dejar fuera la mano y el fondo. Verás el resultado al instante.'
+                      : 'Pon las cuatro esquinas sobre los bordes del lomo. Corregimos la perspectiva y llenamos todo el lomo, sin márgenes.'
                     : 'Esta es la foto que se guardará. Puedes volver a recortarla antes de guardar.'}
                 </p>
               </div>
@@ -384,6 +482,8 @@ export default function BookAppearanceEditor({
                       onChange={changeCrop}
                       disabled={busy || checking || !!ambiguousPath}
                       subject={noun}
+                      quad={isCover ? undefined : quad}
+                      onQuadChange={changeQuad}
                     />
                   ) : (
                     <div className="spine-crop-stage" role="status">
@@ -418,10 +518,66 @@ export default function BookAppearanceEditor({
                     aria-label={`Vista previa del recorte ${isCover ? 'de la portada' : 'del lomo'}`}
                   />
                   <span>Así quedará</span>
+                  {!isCover && (
+                    <small className="spine-edge-to-edge">
+                      Lomo completo · sin márgenes
+                    </small>
+                  )}
                 </div>
               </div>
               {cropping && source && crop && (
                 <>
+                  {!isCover && (
+                    <div className="spine-detection-controls">
+                      <p role="status">
+                        {detection.detecting
+                          ? 'Buscando los bordes del lomo…'
+                          : detection.detectionMessage}
+                      </p>
+                      <div className="spine-detection-actions">
+                        <button
+                          type="button"
+                          className="button secondary"
+                          disabled={detection.detecting}
+                          onClick={detection.detectAgain}
+                        >
+                          Detectar lomo de nuevo
+                        </button>
+                        <button
+                          type="button"
+                          className="button secondary"
+                          disabled={detection.detecting || !quad}
+                          onClick={() =>
+                            quad &&
+                            changeQuad([quad[2], quad[3], quad[0], quad[1]])
+                          }
+                        >
+                          <RotateCw size={15} /> Girar lomo 180°
+                        </button>
+                      </div>
+                      {detection.candidates.length > 1 && (
+                        <div
+                          className="spine-detection-choices"
+                          aria-label="Lomos encontrados"
+                        >
+                          {detection.candidates.map((candidate, index) => (
+                            <SpineDetectionChoice
+                              key={index}
+                              source={source}
+                              quad={candidate.quad}
+                              index={index}
+                              selected={quad === candidate.quad}
+                              onSelect={() => changeQuad(candidate.quad)}
+                            />
+                          ))}
+                        </div>
+                      )}
+                      <p className="small-note">
+                        La detección se hace en tu dispositivo. Solo se guarda
+                        el lomo que confirmes.
+                      </p>
+                    </div>
+                  )}
                   <div className="spine-photo-transform">
                     <button
                       type="button"
@@ -457,7 +613,7 @@ export default function BookAppearanceEditor({
                         value={zoom}
                         onChange={(e) => {
                           const next = Number(e.target.value);
-                          setCrop(zoomCrop(crop, next / zoom, source));
+                          changeCrop(zoomCrop(crop, next / zoom, source));
                           setZoom(next);
                         }}
                       />
@@ -475,7 +631,7 @@ export default function BookAppearanceEditor({
                             : (crop.x * 2) / (source.width - crop.width) - 1
                         }
                         onChange={(e) =>
-                          setCrop({
+                          changeCrop({
                             ...crop,
                             x:
                               ((source.width - crop.width) *
@@ -498,7 +654,7 @@ export default function BookAppearanceEditor({
                             : (crop.y * 2) / (source.height - crop.height) - 1
                         }
                         onChange={(e) =>
-                          setCrop({
+                          changeCrop({
                             ...crop,
                             y:
                               ((source.height - crop.height) *
@@ -513,17 +669,21 @@ export default function BookAppearanceEditor({
                     <button
                       type="button"
                       className="text-button"
-                      onClick={() =>
-                        changeCrop(
-                          initialCrop(source, style.width / style.height),
-                        )
-                      }
+                      onClick={() => {
+                        const selection = initialCrop(
+                          source,
+                          style.width / style.height,
+                        );
+                        if (!isCover) changeQuad(rectQuad(selection));
+                        else changeCrop(selection);
+                      }}
                     >
                       <RotateCcw size={14} /> Reiniciar marco
                     </button>
                     <button
                       type="button"
                       className="button primary"
+                      disabled={!isCover && detection.detecting}
                       onClick={() => {
                         setCropping(false);
                         setNotice(

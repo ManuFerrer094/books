@@ -392,12 +392,14 @@ function ScenePhoto({
   height,
   fallback,
   requested,
+  shading,
 }: {
   src?: string;
   width: number;
   height: number;
   fallback: React.ReactNode;
   requested: boolean;
+  shading?: React.ReactNode;
 }) {
   const [failed, setFailed] = useState(false);
   useEffect(() => setFailed(false), [src]);
@@ -417,6 +419,7 @@ function ScenePhoto({
           onError={() => setFailed(true)}
         />
       )}
+      {(!src || failed) && shading}
     </g>
   );
 }
@@ -458,6 +461,21 @@ function BookArt({
         src={src}
         width={width}
         height={height}
+        shading={
+          !cover && (
+            <g data-automatic-spine-shading="true">
+              <rect width="3" height={height} fill="#ffffff28" />
+              <rect x={width - 3} width="3" height={height} fill="#00000028" />
+              <rect
+                x="3"
+                y="0"
+                width={Math.max(0, width - 6)}
+                height="2"
+                fill="#ffffff3b"
+              />
+            </g>
+          )
+        }
         fallback={
           cover ? (
             <>
@@ -547,15 +565,19 @@ function BookArt({
           )
         }
       />
-      <rect width="3" height={height} fill="#ffffff28" />
-      <rect x={width - 3} width="3" height={height} fill="#00000028" />
-      <rect
-        x="3"
-        y="0"
-        width={Math.max(0, width - 6)}
-        height="2"
-        fill="#ffffff3b"
-      />
+      {cover && (
+        <g>
+          <rect width="3" height={height} fill="#ffffff28" />
+          <rect x={width - 3} width="3" height={height} fill="#00000028" />
+          <rect
+            x="3"
+            y="0"
+            width={Math.max(0, width - 6)}
+            height="2"
+            fill="#ffffff3b"
+          />
+        </g>
+      )}
     </g>
   );
 }
@@ -681,6 +703,14 @@ export default function BookshelfScene({
         className={`scene-item ${selectedSet.has(item.id) ? 'selected' : ''}`}
       >
         <title>{label}</title>
+        {interactive && !ghost && item.kind === 'decor' && (
+          <rect
+            width={width}
+            height={height}
+            fill="transparent"
+            pointerEvents="all"
+          />
+        )}
         <ellipse
           cx={width / 2}
           cy={height + 2}
