@@ -10,6 +10,7 @@ import { AuthClientFactory } from '../auth/auth-client.factory.js';
 import { IsbnLookupService } from '../books/isbn-lookup.service.js';
 import type { AuthRequest } from '../auth/auth.guard.js';
 import { ReadingStatus } from './library.dto.js';
+import { atmosphereForScene } from './bookshelf-atmosphere.js';
 import {
   migrateDesign,
   placedIds,
@@ -339,13 +340,12 @@ describe('LibraryService', () => {
       migrateDesign([{ book_id: 1 }, { book_id: 2 }]),
       decorItem('fern'),
     )!;
-    const layoutSpy = jest
-      .spyOn(service, 'bookshelf')
-      .mockResolvedValueOnce({
-        book_ids: [1, 2],
-        revision: 0,
-        design: original,
-      });
+    original.atmosphere = atmosphereForScene('rain-room');
+    const layoutSpy = jest.spyOn(service, 'bookshelf').mockResolvedValueOnce({
+      book_ids: [1, 2],
+      revision: 0,
+      design: original,
+    });
     const listSpy = jest
       .spyOn(service, 'list')
       .mockResolvedValueOnce([{ book_id: 1 }, { book_id: 2 }] as any);
@@ -353,6 +353,7 @@ describe('LibraryService', () => {
     clients.create.mockReturnValue({ rpc });
     await service.saveBookshelf(identity, { book_ids: [2, 1], revision: 0 });
     const saved = rpc.mock.calls[0][1].requested_design;
+    expect(saved.atmosphere).toEqual(original.atmosphere);
     expect(placedIds(saved)).toEqual([2, 1]);
     expect(saved.items.find((item: any) => item.kind === 'decor')).toEqual(
       original.items.find((item) => item.kind === 'decor'),

@@ -18,6 +18,11 @@ import { spineStyle, textColor } from './bookshelf-layout';
 import { supabase } from './supabase';
 import type { LibraryBook } from './types';
 import {
+  LightingDefs,
+  LightingBackground,
+  LightingForeground,
+} from './BookshelfLighting';
+import {
   decorationAssets,
   decorationColor,
   decorationTintMatrix,
@@ -1173,8 +1178,20 @@ export default function BookshelfScene({
       aria-label="Tu estantería personalizada"
     >
       <defs>
+        <LightingDefs
+          design={design}
+          uid={uid}
+          bounds={bounds}
+          animate={interactive}
+        />
         <linearGradient id={`${uid}-wall`} x2="0" y2="1">
-          <stop stopColor={design.background_color} />
+          <stop
+            stopColor={
+              design.night && design.atmosphere?.lighting.enabled
+                ? '#24343b'
+                : design.background_color
+            }
+          />
           <stop
             offset="1"
             stopColor={design.night ? '#121c26' : design.background_color}
@@ -1268,6 +1285,12 @@ export default function BookshelfScene({
           fill={`url(#${uid}-${design.background === 'wallpaper' ? 'paper' : 'wall-lines'})`}
         />
       )}
+      <LightingBackground
+        design={design}
+        uid={uid}
+        bounds={bounds}
+        animate={interactive}
+      />
       {cases.map(({ bookcase, x, y, width, height }) => (
         <g key={bookcase.id}>
           <rect
@@ -1438,6 +1461,12 @@ export default function BookshelfScene({
           />
         </g>
       ))}
+      <LightingForeground
+        design={design}
+        uid={uid}
+        bounds={bounds}
+        animate={interactive}
+      />
       {preview && renderItem(preview.item, true)}
       {renderInspection()}
     </svg>

@@ -1,4 +1,8 @@
 /** Shared, dependency-free scene model and geometry used by the API and editor. */
+import {
+  validAtmosphere,
+  type BookshelfAtmosphere,
+} from './bookshelf-atmosphere.js';
 export const materials = ['oak', 'walnut', 'birch', 'white', 'black'] as const;
 export type Material = (typeof materials)[number];
 export type BookMode = 'upright' | 'lean' | 'cover';
@@ -49,6 +53,7 @@ export interface BookshelfDesign {
   night: boolean;
   bookcases: Bookcase[];
   items: SceneItem[];
+  atmosphere?: BookshelfAtmosphere;
 }
 export const decorations = [
   ['fern', 'Helecho', 'plant'],
@@ -732,6 +737,8 @@ export function validateDesign(
   )
     fail();
   const design = value as BookshelfDesign;
+  if (design.atmosphere !== undefined && !validAtmosphere(design.atmosphere))
+    fail();
   for (const c of design.bookcases) {
     if (
       !record(c) ||

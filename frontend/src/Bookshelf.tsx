@@ -56,6 +56,7 @@ import {
 import { errorMessage } from './api';
 import { Dialog } from './components';
 import BookshelfScene, { DecorArt } from './BookshelfScene';
+import LibraryAtmosphere from './LibraryAtmosphere';
 import { decorationAssets, decorationColor } from './bookshelf-decor';
 import { useBookshelfStudio } from './useBookshelfStudio';
 import { exportBookshelf } from './bookshelf-export';
@@ -148,6 +149,20 @@ export default function Bookshelf({
     additive: boolean;
   } | null>(null);
   const suppressClick = useRef(0);
+  const ambientSound = useRef<{ page: () => void }>(null);
+  const previousInspection = useRef<typeof inspection>(null);
+  useEffect(() => {
+    const previous = previousInspection.current;
+    previousInspection.current = inspection;
+    if (
+      inspection &&
+      inspection.progress > 0 &&
+      (!previous ||
+        previous.progress === 0 ||
+        previous.bookId !== inspection.bookId)
+    )
+      ambientSound.current?.page();
+  }, [inspection]);
   const pan = useRef<{ pointer: number; x: number; y: number } | null>(null);
   const previewRef = useRef<typeof preview>(null);
   const reloadRevision = useRef<number | null>(null);
@@ -273,6 +288,14 @@ export default function Bookshelf({
     change(next);
     editable(next, action);
   };
+  function furniturePreset(id: string) {
+    const next = applyPreset(allBooks, id);
+    if (design?.atmosphere) {
+      next.atmosphere = structuredClone(design.atmosphere);
+      if (next.night !== design.night) next.atmosphere.scene = 'custom';
+    }
+    return next;
+  }
   function removeSelectedDecorations() {
     const ids = new Set(
       design?.items
@@ -628,7 +651,7 @@ export default function Bookshelf({
       onKeyDown={(event) => {
         if (
           (event.target as Element).closest(
-            'input, textarea, select, [contenteditable], dialog',
+            'input, textarea, select, [contenteditable], dialog, [data-ambient-controls]',
           )
         )
           return;
@@ -736,6 +759,19 @@ export default function Bookshelf({
           <Maximize size={17} />
         </button>
       </div>
+      <LibraryAtmosphere
+        ref={ambientSound}
+        key={ownerId}
+        ownerId={ownerId}
+        value={design.atmosphere}
+        night={design.night}
+        onChange={(value, action, night) =>
+          changed((next) => {
+            next.atmosphere = value;
+            if (night !== undefined) next.night = night;
+          }, action)
+        }
+      />
       {studio.error && (
         <div className="shelf-error" role="alert">
           <p>{studio.error}</p>
@@ -1070,6 +1106,7 @@ export default function Bookshelf({
                       onClick={() =>
                         changed((next) => {
                           next.night = !next.night;
+                          if (next.atmosphere) next.atmosphere.scene = 'custom';
                         })
                       }
                     >
@@ -1837,14 +1874,14 @@ export default function Bookshelf({
           </p>
           <div className="studio-preset-preview">
             <BookshelfScene
-              design={applyPreset(allBooks, presetId)}
+              design={furniturePreset(presetId)}
               books={allBooks}
             />
           </div>
           <button
             className="button primary"
             onClick={() => {
-              editable(applyPreset(allBooks, presetId));
+              editable(furniturePreset(presetId));
               setPresetId(null);
               setSelected([]);
               setChosenBooks([]);
