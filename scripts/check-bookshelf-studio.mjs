@@ -3,6 +3,7 @@
 import { readFile, readdir } from 'node:fs/promises';
 import { createRequire } from 'node:module';
 import assert from 'node:assert/strict';
+import { defaultAtmosphere } from '../dist/library/bookshelf-atmosphere.js';
 import {
   decorItem,
   designOrder,
@@ -15,6 +16,87 @@ const {
   PGlite,
 } = require('../.tmp/sql-check/node_modules/@electric-sql/pglite');
 const db = new PGlite();
+async function verifyAtmosphereRepair(sql) {
+  const owner = '66666666-6666-4666-8666-666666666666';
+  const legacy = migrateDesign([]);
+  legacy.bookcases[0].style = 'gilded';
+  legacy.bookcases[0].lights_on = false;
+  legacy.bookcases[0].shelves[0].light.type = 'neon';
+  const scene = dropItem(
+    legacy,
+    { ...decorItem('lamp'), active: false },
+    legacy.bookcases[0].shelves[0].id,
+    8,
+  );
+  await db.query('INSERT INTO auth.users(id) VALUES($1)', [owner]);
+  await db.query("SELECT set_config('request.jwt.claim.sub',$1,false)", [
+    owner,
+  ]);
+  await db.exec('SET ROLE authenticated');
+  await db.query(
+    'SELECT public.save_bookshelf_design($1::integer[],0,$2::jsonb)',
+    [[], JSON.stringify(scene)],
+  );
+  await db.exec(
+    'RESET ROLE; DROP FUNCTION public.validate_bookshelf_atmosphere(jsonb)',
+  );
+  const next = structuredClone(scene);
+  next.atmosphere = defaultAtmosphere();
+  next.atmosphere.lighting.enabled = true;
+  await db.exec('SET ROLE authenticated');
+  await assert.rejects(
+    db.query('SELECT public.save_bookshelf_design($1::integer[],1,$2::jsonb)', [
+      [],
+      JSON.stringify(next),
+    ]),
+    (error) => error.code === '42883',
+  );
+  const { rows: failed } = await db.query(
+    'SELECT revision,design FROM user_bookshelf',
+  );
+  assert.equal(failed[0].revision, 1);
+  assert.equal(stableJson(failed[0].design), stableJson(scene));
+  await db.exec('RESET ROLE');
+  await db.exec(sql);
+  await db.exec(sql); // Repair is safe to rerun, including the common trigger.
+  await db.exec('SET ROLE authenticated');
+  const { rows: saved } = await db.query(
+    'SELECT public.save_bookshelf_design($1::integer[],1,$2::jsonb) AS result',
+    [[], JSON.stringify(next)],
+  );
+  assert.equal(saved[0].result.revision, 2);
+  assert.equal(stableJson(saved[0].result.design), stableJson(next));
+  for (const invalid of [
+    {
+      ...next,
+      atmosphere: {
+        ...next.atmosphere,
+        sound: { ...next.atmosphere.sound, master: 2 },
+      },
+    },
+    { ...next, items: next.items.map((item) => ({ ...item, active: 2 })) },
+  ]) {
+    await assert.rejects(
+      db.query(
+        'SELECT public.save_bookshelf_design($1::integer[],2,$2::jsonb)',
+        [[], JSON.stringify(invalid)],
+      ),
+      (error) => error.code === '22023',
+    );
+  }
+  await db.exec('RESET ROLE');
+  await db.exec(sql);
+  const { rows: retained } = await db.query(
+    'SELECT revision,design FROM user_bookshelf WHERE user_id=$1',
+    [owner],
+  );
+  assert.equal(retained[0].revision, 2);
+  assert.equal(stableJson(retained[0].design), stableJson(next));
+  await db.query('DELETE FROM auth.users WHERE id=$1', [owner]);
+  console.log(
+    'Missing 009 reproduced (42883); 011 repaired save with states intact, both validators and idempotent reruns',
+  );
+}
 try {
   await db.exec(`
     CREATE ROLE anon; CREATE ROLE authenticated; CREATE ROLE service_role BYPASSRLS;
@@ -77,7 +159,9 @@ try {
         ...(book_id === ids[0] ? { spine: { width: 54, height: 224 } } : {}),
       }));
     }
-    await db.exec(await readFile(new URL(name, directory), 'utf8'));
+    const sql = await readFile(new URL(name, directory), 'utf8');
+    if (name.startsWith('011')) await verifyAtmosphereRepair(sql);
+    else await db.exec(sql);
     console.log(`Migration ${name}: OK`);
   }
   const { rows: migrated } = await db.query(

@@ -54,12 +54,26 @@ export async function api<T>(
       'No podemos conectar con tu biblioteca. Comprueba la conexión e inténtalo de nuevo.',
     );
   }
-  if (!response.ok)
+  if (!response.ok) {
+    if (response.status === 503 && path === '/me/bookshelf') {
+      let body: { code?: string } | null = null;
+      try {
+        body = await response.json();
+      } catch {
+        /* Keep the ordinary error for non-JSON responses. */
+      }
+      if (body?.code === 'BOOKSHELF_SCHEMA_OUTDATED')
+        throw new ApiError(
+          503,
+          'El guardado de la estantería necesita una actualización del servidor. Tu borrador se conserva.',
+        );
+    }
     throw new ApiError(
       response.status,
       messages[response.status] ||
         'Algo no ha salido bien. Inténtalo de nuevo.',
     );
+  }
   if (response.status === 204) return undefined as T;
   return response.json() as Promise<T>;
 }

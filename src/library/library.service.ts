@@ -6,6 +6,7 @@ import {
   Logger,
   NotFoundException,
   UnauthorizedException,
+  ServiceUnavailableException,
 } from '@nestjs/common';
 import type { PostgrestError } from '@supabase/supabase-js';
 import { AuthClientFactory } from '../auth/auth-client.factory.js';
@@ -289,6 +290,15 @@ export class LibraryService {
         expected_revision: input.revision,
         requested_design: input.design,
       });
+    if (error && ['42883', 'PGRST202'].includes(error.code)) {
+      this.logger.error(
+        `Bookshelf schema incomplete (code: ${error.code}). Apply bookshelf migrations through 011.`,
+      );
+      throw new ServiceUnavailableException({
+        code: 'BOOKSHELF_SCHEMA_OUTDATED',
+        message: 'Bookshelf storage needs a server update',
+      });
+    }
     if (error) this.fail(error);
     return data;
   }

@@ -4,6 +4,7 @@ import {
   BadRequestException,
   ConflictException,
   NotFoundException,
+  ServiceUnavailableException,
 } from '@nestjs/common';
 import { LibraryService } from './library.service.js';
 import { AuthClientFactory } from '../auth/auth-client.factory.js';
@@ -283,6 +284,34 @@ describe('LibraryService', () => {
       service.saveBookshelf(identity, { book_ids: [1], revision: 0, design }),
     ).rejects.toBeInstanceOf(ConflictException);
   });
+  it.each(['42883', 'PGRST202'])(
+    'reports missing bookshelf functions without exposing database details (%s)',
+    async (code) => {
+      clients.create.mockReturnValue({
+        rpc: jest
+          .fn<any>()
+          .mockResolvedValue({
+            data: null,
+            error: { code, message: 'Private function and database details' },
+          }),
+      });
+      const design = migrateDesign([]);
+      try {
+        await service.saveBookshelf(identity, {
+          book_ids: [],
+          revision: 0,
+          design,
+        });
+        throw new Error('Expected missing-schema error');
+      } catch (error) {
+        expect(error).toBeInstanceOf(ServiceUnavailableException);
+        expect((error as ServiceUnavailableException).getResponse()).toEqual({
+          code: 'BOOKSHELF_SCHEMA_OUTDATED',
+          message: 'Bookshelf storage needs a server update',
+        });
+      }
+    },
+  );
   it('reconciles persisted order with additions and removals without writing on GET', async () => {
     const layoutQuery = {
       select: jest.fn<any>(),
