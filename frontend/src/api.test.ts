@@ -10,6 +10,38 @@ beforeEach(() => {
   });
 });
 describe('cliente de biblioteca', () => {
+  it('identifica el servidor sin migrar y conserva mensajes genéricos sin revelar SQL', async () => {
+    vi.spyOn(globalThis, 'fetch')
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            code: 'BOOKSHELF_SCHEMA_OUTDATED',
+            message: 'Private SQL',
+          }),
+          { status: 503 },
+        ),
+      )
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ message: 'Private SQL' }), {
+          status: 500,
+        }),
+      )
+      .mockResolvedValueOnce(
+        new Response('proxy unavailable', { status: 503 }),
+      );
+    await expect(api('/me/bookshelf', { method: 'PUT' })).rejects.toMatchObject(
+      {
+        status: 503,
+        message: expect.stringContaining('Tu borrador se conserva'),
+      },
+    );
+    await expect(api('/me/bookshelf', { method: 'PUT' })).rejects.toMatchObject(
+      { status: 500, message: expect.not.stringContaining('Private SQL') },
+    );
+    await expect(api('/me/bookshelf', { method: 'PUT' })).rejects.toMatchObject(
+      { status: 503, message: expect.stringContaining('catálogos') },
+    );
+  });
   it('envía la identidad del usuario a la API', async () => {
     const request = vi
       .spyOn(globalThis, 'fetch')
