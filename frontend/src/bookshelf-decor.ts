@@ -9,6 +9,14 @@ interface DecorationAsset {
   height: number;
 }
 export const decorationAssets: Record<string, DecorationAsset> = catalog;
+/** Match SVG xMidYMax meet, including short, wide objects such as cups/clocks. */
+export function decorationBounds(asset: string, width: number, height: number) {
+  const resource = decorationAssets[asset] ?? { width: 140, height: 200 };
+  const fit = Math.min(width / resource.width, height / resource.height);
+  const w = resource.width * fit,
+    h = resource.height * fit;
+  return { x: (width - w) / 2, y: height - h, width: w, height: h };
+}
 
 /** Existing compositions used these two defaults for the hand-drawn artwork. */
 export function decorationColor(asset: string, color: string) {

@@ -57,6 +57,15 @@ import { errorMessage } from './api';
 import { Dialog } from './components';
 import BookshelfScene, { DecorArt } from './BookshelfScene';
 import LibraryAtmosphere from './LibraryAtmosphere';
+import {
+  FurnitureControls,
+  DecorationControls,
+} from './BookshelfCraftControls';
+import {
+  decorationCollections,
+  decorAction,
+  interactDecoration,
+} from '../../src/library/bookshelf-craft';
 import { decorationAssets, decorationColor } from './bookshelf-decor';
 import { useBookshelfStudio } from './useBookshelfStudio';
 import { exportBookshelf } from './bookshelf-export';
@@ -106,6 +115,7 @@ export default function Bookshelf({
     [tab, setTab] = useState<string>('ambience');
   const [selected, setSelected] = useState<string[]>([]),
     [chosenBooks, setChosenBooks] = useState<number[]>([]);
+  const [collection, setCollection] = useState('all');
   const [selectedBook, setSelectedBook] = useState<number | null>(null);
   const [inspection, setInspection] = useState<{
     bookId: number;
@@ -287,6 +297,18 @@ export default function Bookshelf({
     const next = cloneDesign(design);
     change(next);
     editable(next, action);
+  };
+  const interactObject = (item: SceneItem) => {
+    if (!decorAction(item)) {
+      setDesigning(true);
+      selectItem(item, false, undefined, true);
+      return;
+    }
+    changed((next) => {
+      next.items = next.items.map((other) =>
+        other.id === item.id ? interactDecoration(other) : other,
+      );
+    });
   };
   function furniturePreset(id: string) {
     const next = applyPreset(allBooks, id);
@@ -698,6 +720,24 @@ export default function Bookshelf({
       </div>
       <div className="studio-actions">
         <button
+          className="text-button"
+          disabled={!!arrangement}
+          aria-pressed={design.bookcases.some((c) => c.lights_on !== false)}
+          onClick={() =>
+            changed((next) => {
+              const on = next.bookcases.some((c) => c.lights_on !== false);
+              next.bookcases.forEach((c) => {
+                c.lights_on = !on;
+              });
+            })
+          }
+        >
+          {design.bookcases.some((c) => c.lights_on !== false)
+            ? 'Apagar'
+            : 'Encender'}{' '}
+          todas las luces del mueble
+        </button>
+        <button
           className="icon-button"
           aria-label="Deshacer"
           disabled={!studio.canUndo || !!arrangement}
@@ -890,6 +930,16 @@ export default function Bookshelf({
                 designing={designing && !arrangement}
                 onSelect={arrangement ? undefined : selectItem}
                 onOpen={arrangement ? undefined : onSelect}
+                onInteract={arrangement ? undefined : interactObject}
+                onPower={
+                  arrangement
+                    ? undefined
+                    : (id) =>
+                        changed((next) => {
+                          const c = next.bookcases.find((c) => c.id === id)!;
+                          c.lights_on = c.lights_on === false;
+                        })
+                }
                 onPointerDown={startDrag}
                 preview={preview}
                 inspection={inspection}
@@ -1152,6 +1202,11 @@ export default function Bookshelf({
                 )}
                 {tab === 'furniture' && (
                   <>
+                    <FurnitureControls
+                      bookcase={currentCase}
+                      shelf={currentShelf}
+                      changed={changed}
+                    />
                     <label className="field">
                       Nombre
                       <input
@@ -1453,6 +1508,11 @@ export default function Bookshelf({
                     </button>
                     {selectedItem.kind === 'decor' ? (
                       <>
+                        <DecorationControls
+                          item={selectedItem}
+                          onInteract={interactObject}
+                          onUpdate={updateItem}
+                        />
                         <label className="field">
                           Color del objeto
                           <input
@@ -1664,27 +1724,53 @@ export default function Bookshelf({
                     <p className="studio-panel-intro">
                       Pequeños detalles que hacen hogar.
                     </p>
-                    <div className="studio-decor-grid">
-                      {decorations.map(([asset, label]) => (
+                    <div
+                      className="craft-collections"
+                      aria-label="Colecciones de objetos"
+                    >
+                      {decorationCollections.map((c) => (
                         <button
-                          key={asset}
-                          title={label}
-                          onClick={() =>
-                            put(decorItem(asset, undefined, decorUnit))
-                          }
+                          key={c.id}
+                          aria-pressed={collection === c.id}
+                          onClick={() => setCollection(c.id)}
                         >
-                          <DecorArt
-                            asset={asset}
-                            thumbnail
-                            color={
-                              asset === 'fern' || asset === 'monstera'
-                                ? '#758969'
-                                : '#b48c64'
-                            }
-                          />
-                          <span>{label}</span>
+                          {c.name}
                         </button>
                       ))}
+                    </div>
+                    <p className="craft-hint">
+                      En modo Ver, toca las luces, plantas, marcos, figuras,
+                      reloj y taza para descubrir sus gestos.
+                    </p>
+                    <div className="studio-decor-grid">
+                      {decorations
+                        .filter(
+                          ([asset]) =>
+                            collection === 'all' ||
+                            decorationCollections
+                              .find((c) => c.id === collection)!
+                              .assets.includes(asset),
+                        )
+                        .map(([asset, label]) => (
+                          <button
+                            key={asset}
+                            title={label}
+                            onClick={() =>
+                              put(decorItem(asset, undefined, decorUnit))
+                            }
+                          >
+                            <DecorArt
+                              asset={asset}
+                              thumbnail
+                              color={
+                                asset === 'fern' || asset === 'monstera'
+                                  ? '#758969'
+                                  : '#b48c64'
+                              }
+                            />
+                            <span>{label}</span>
+                          </button>
+                        ))}
                     </div>
                     <a
                       className="studio-decor-credits"

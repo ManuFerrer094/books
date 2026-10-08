@@ -15,6 +15,13 @@ import {
   type SceneItem,
 } from '../../src/library/bookshelf-design';
 import { spineStyle, textColor } from './bookshelf-layout';
+import { decorAction, shelfPowered } from '../../src/library/bookshelf-craft';
+import {
+  ShelfFixtures,
+  FurnitureDetails,
+  FurnitureBack,
+  DecorationEffects,
+} from './BookshelfCraft';
 import { supabase } from './supabase';
 import type { LibraryBook } from './types';
 import {
@@ -779,6 +786,8 @@ function BookInHand({
 }
 
 export interface SceneProps {
+  onInteract?: (item: SceneItem) => void;
+  onPower?: (id: string) => void;
   design: BookshelfDesign;
   books: LibraryBook[];
   selected?: string[];
@@ -810,6 +819,8 @@ export default function BookshelfScene({
   designing,
   onSelect,
   onOpen,
+  onInteract,
+  onPower,
   onPointerDown,
   preview,
   svgRef,
@@ -895,7 +906,7 @@ export default function BookshelfScene({
         aria-label={
           ghost || !interactive
             ? undefined
-            : `${designing ? 'Seleccionar' : 'Ver'} ${label}`
+            : `${designing ? 'Seleccionar' : item.kind === 'decor' ? (decorAction(item) ?? 'Ver') : 'Ver'} ${label}`
         }
         aria-pressed={
           designing && !ghost && item.kind !== 'stack'
@@ -913,7 +924,7 @@ export default function BookshelfScene({
                     )
                   : item.book_ids.length
                     ? onOpen?.(item.book_ids[0])
-                    : undefined
+                    : onInteract?.(item)
         }
         onKeyDown={
           ghost || item.kind === 'stack'
@@ -928,7 +939,9 @@ export default function BookshelfScene({
                         undefined,
                         true,
                       )
-                    : item.book_ids.length && onOpen?.(item.book_ids[0]);
+                    : item.book_ids.length
+                      ? onOpen?.(item.book_ids[0])
+                      : onInteract?.(item);
                 }
               }
         }
@@ -959,8 +972,33 @@ export default function BookshelfScene({
             transform={`translate(${width / 2} ${height / 2}) rotate(${item.rotation}) scale(${1 / (1 + Math.abs(Math.sin((item.rotation * Math.PI) / 180)) * 1.4)}) translate(${-width / 2} ${-height / 2})`}
           >
             <svg width={width} height={height}>
-              <DecorArt asset={item.asset} color={item.color} />
+              <g
+                className={
+                  interactive &&
+                  design.atmosphere?.lighting.motion !== false &&
+                  item.active &&
+                  [
+                    'fern',
+                    'monstera',
+                    'ivy',
+                    'cactus',
+                    'flowers',
+                    'bonsai',
+                  ].includes(item.asset)
+                    ? 'craft-plant-awake'
+                    : undefined
+                }
+              >
+                <DecorArt asset={item.asset} color={item.color} />
+              </g>
             </svg>
+            <DecorationEffects
+              item={item}
+              powered={shelfPowered(shelf.bookcase, shelf.shelf)}
+              animate={
+                interactive && design.atmosphere?.lighting.motion !== false
+              }
+            />
           </g>
         ) : item.kind === 'stack' ? (
           (() => {
@@ -1265,7 +1303,15 @@ export default function BookshelfScene({
           >
             <stop
               stopColor={shelf.light.color}
-              stopOpacity={shelf.light.intensity * 0.8}
+              stopOpacity={
+                shelfPowered(
+                  geometry.shelves.find((e) => e.shelf.id === shelf.id)!
+                    .bookcase,
+                  shelf,
+                ) && !['none', 'spots'].includes(shelf.light.type ?? 'strip')
+                  ? shelf.light.intensity * 0.8
+                  : 0
+              }
             />
             <stop offset="1" stopColor={shelf.light.color} stopOpacity="0" />
           </linearGradient>
@@ -1300,14 +1346,18 @@ export default function BookshelfScene({
             height={height}
             rx="4"
             fill="#000000"
-            opacity="0.13"
+            opacity={bookcase.style === 'floating' ? 0 : 0.13}
           />
           <rect
             x={x}
             y={y}
             width={width}
             height={height}
-            fill={`url(#${uid}-${bookcase.id}-wood)`}
+            fill={
+              bookcase.style === 'floating'
+                ? 'transparent'
+                : `url(#${uid}-${bookcase.id}-wood)`
+            }
           />
           <text
             x={x + width / 2}
@@ -1333,7 +1383,11 @@ export default function BookshelfScene({
                   y={entry.y}
                   width={bookcase.width}
                   height={entry.shelf.height}
-                  fill={`url(#${uid}-${bookcase.id}-back)`}
+                  fill={
+                    bookcase.style === 'floating'
+                      ? design.background_color
+                      : `url(#${uid}-${bookcase.id}-back)`
+                  }
                 />
                 <rect
                   x={entry.x}
@@ -1341,9 +1395,18 @@ export default function BookshelfScene({
                   width={bookcase.width}
                   height={entry.shelf.height}
                   fill="#16120e"
-                  opacity={design.night ? 0.48 : 0.15}
+                  opacity={
+                    bookcase.style === 'floating'
+                      ? design.night
+                        ? 0.15
+                        : 0.025
+                      : design.night
+                        ? 0.48
+                        : 0.15
+                  }
                 />
-                {bookcase.material !== 'white' &&
+                {bookcase.style !== 'floating' &&
+                  bookcase.material !== 'white' &&
                   bookcase.material !== 'black' && (
                     <rect
                       x={entry.x}
@@ -1355,11 +1418,16 @@ export default function BookshelfScene({
                     />
                   )}
                 <path
-                  d={`M${entry.x} ${entry.y}v${entry.shelf.height}h${bookcase.width}`}
+                  d={
+                    bookcase.style === 'floating'
+                      ? `M${entry.x} ${entry.bottom}h${bookcase.width}`
+                      : `M${entry.x} ${entry.y}v${entry.shelf.height}h${bookcase.width}`
+                  }
                   stroke="#00000030"
                   strokeWidth="7"
                   fill="none"
                 />
+                <FurnitureBack entry={entry} />
                 <rect
                   x={entry.x}
                   y={entry.y}
@@ -1367,47 +1435,7 @@ export default function BookshelfScene({
                   height={entry.shelf.height * 0.82}
                   fill={`url(#${uid}-${entry.shelf.id}-light)`}
                 />
-                {entry.shelf.light.intensity > 0 && (
-                  <rect
-                    x={entry.x + 8}
-                    y={entry.y + 2}
-                    width={bookcase.width - 16}
-                    height="3"
-                    rx="2"
-                    fill={entry.shelf.light.color}
-                    opacity={entry.shelf.light.intensity}
-                  />
-                )}
-                {entry.shelf.light.garland && (
-                  <g>
-                    <path
-                      d={`M${entry.x + 6} ${entry.y + 12}Q${entry.x + bookcase.width / 2} ${entry.y + 63} ${entry.x + bookcase.width - 6} ${entry.y + 12}`}
-                      fill="none"
-                      stroke="#b6a77e"
-                      strokeWidth="1.5"
-                    />
-                    {Array.from({ length: 19 }, (_, i) => {
-                      const t = (i + 1) / 20;
-                      return (
-                        <g key={i}>
-                          <circle
-                            cx={entry.x + bookcase.width * t}
-                            cy={entry.y + 12 + 100 * t * (1 - t)}
-                            r="8"
-                            fill={entry.shelf.light.color}
-                            opacity="0.18"
-                          />
-                          <circle
-                            cx={entry.x + bookcase.width * t}
-                            cy={entry.y + 12 + 100 * t * (1 - t)}
-                            r="3"
-                            fill={entry.shelf.light.color}
-                          />
-                        </g>
-                      );
-                    })}
-                  </g>
-                )}
+                <ShelfFixtures entry={entry} uid={uid} />
                 {design.items
                   .filter((item) => item.shelf_id === entry.shelf.id)
                   .map((item) => renderItem(item))}
@@ -1445,19 +1473,33 @@ export default function BookshelfScene({
             y={y}
             width="20"
             height={height}
-            fill={`url(#${uid}-${bookcase.id}-wood)`}
+            fill={
+              bookcase.style === 'floating'
+                ? 'transparent'
+                : `url(#${uid}-${bookcase.id}-wood)`
+            }
           />
           <rect
             x={x + width - 20}
             y={y}
             width="20"
             height={height}
-            fill={`url(#${uid}-${bookcase.id}-wood)`}
+            fill={
+              bookcase.style === 'floating'
+                ? 'transparent'
+                : `url(#${uid}-${bookcase.id}-wood)`
+            }
           />
           <path
             d={`M${x + 2} ${y + 2}H${x + width - 2}`}
-            stroke="#ffffff40"
+            stroke={bookcase.style === 'floating' ? 'transparent' : '#ffffff40'}
             strokeWidth="3"
+          />
+          <FurnitureDetails
+            design={design}
+            caseId={bookcase.id}
+            uid={uid}
+            onPower={onPower}
           />
         </g>
       ))}

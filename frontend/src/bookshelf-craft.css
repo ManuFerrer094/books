@@ -1,0 +1,144 @@
+.craft-section {
+  border: 1px solid var(--border, #ded8cd);
+  border-radius: 14px;
+  padding: 14px;
+  background: linear-gradient(135deg, #c8a9670a, transparent);
+  display: grid;
+  gap: 12px;
+}
+.craft-section p,
+.craft-hint {
+  font-size: 0.8rem;
+  line-height: 1.5;
+  color: var(--muted, #736e65);
+  margin: 0;
+}
+.craft-options {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 7px;
+}
+.craft-choice {
+  border: 1px solid #a8927038;
+  background: var(--surface, #faf7f0);
+  padding: 10px 6px;
+  border-radius: 10px;
+  color: inherit;
+  cursor: pointer;
+  display: grid;
+  gap: 5px;
+  justify-items: center;
+  font: inherit;
+  font-size: 0.75rem;
+}
+.craft-choice[aria-pressed='true'] {
+  border-color: #b79456;
+  background: #c6a6681a;
+  box-shadow: inset 0 0 0 1px #b7945640;
+}
+.craft-choice svg {
+  width: 80px;
+  height: 51px;
+}
+.craft-collections {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin-bottom: 12px;
+}
+.craft-collections button {
+  font: inherit;
+  font-size: 0.73rem;
+  border: 1px solid #a8927040;
+  border-radius: 20px;
+  padding: 6px 10px;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+}
+.craft-collections button[aria-pressed='true'] {
+  background: #bfa36526;
+  border-color: #b19461;
+}
+.shelf-power-switch {
+  cursor: pointer;
+}
+.shelf-power-switch:focus-visible > rect:first-of-type {
+  stroke: #ffe1a2;
+  stroke-width: 2;
+}
+.craft-plant-awake {
+  transform-box: fill-box;
+  transform-origin: 50% 100%;
+  animation: craft-leaves 7s ease-in-out infinite;
+}
+.craft-candle-flame {
+  transform-box: fill-box;
+  transform-origin: 50% 100%;
+  animation: craft-flame 3.7s ease-in-out infinite;
+}
+.craft-steam {
+  animation: craft-steam 4.8s ease-in-out infinite;
+}
+.craft-clock-hand {
+  animation: craft-clock 60s steps(60, end) infinite;
+}
+@keyframes craft-clock {
+  to {
+    transform: rotate(360deg);
+  }
+}
+.craft-familiar {
+  animation: craft-familiar 6s ease-in-out infinite;
+}
+@keyframes craft-leaves {
+  0%,
+  100% {
+    transform: rotate(-1.4deg);
+  }
+  50% {
+    transform: rotate(1.4deg);
+  }
+}
+@keyframes craft-flame {
+  0%,
+  100% {
+    transform: scale(0.9, 1);
+    opacity: 0.8;
+  }
+  50% {
+    transform: scale(1.1, 0.87);
+    opacity: 1;
+  }
+}
+@keyframes craft-steam {
+  0%,
+  100% {
+    opacity: 0.12;
+    transform: translateY(1px);
+  }
+  50% {
+    opacity: 0.5;
+    transform: translateY(-8px);
+  }
+}
+@keyframes craft-familiar {
+  0%,
+  70%,
+  100% {
+    opacity: 0.1;
+  }
+  80%,
+  90% {
+    opacity: 0.9;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .craft-plant-awake,
+  .craft-candle-flame,
+  .craft-steam,
+  .craft-clock-hand,
+  .craft-familiar {
+    animation: none;
+  }
+}

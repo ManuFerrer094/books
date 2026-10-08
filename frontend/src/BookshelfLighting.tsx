@@ -5,6 +5,8 @@ import {
   type ShelfGeometry,
 } from '../../src/library/bookshelf-design';
 import { readAtmosphere } from '../../src/library/bookshelf-atmosphere';
+import { shelfPowered } from '../../src/library/bookshelf-craft';
+import { decorationBounds } from './bookshelf-decor';
 
 type Bounds = { x: number; y?: number; width: number; height: number };
 interface Props {
@@ -174,11 +176,17 @@ export function ShelfGlow({
   uid: string;
 }) {
   const light = readAtmosphere(design.atmosphere, design.night).lighting;
-  if (!light.enabled || !light.glow) return null;
+  if (
+    !light.enabled ||
+    !light.glow ||
+    !shelfPowered(entry.bookcase, entry.shelf)
+  )
+    return null;
   const sources = design.items.filter(
     (item) =>
       item.shelf_id === entry.shelf.id &&
       item.kind === 'decor' &&
+      item.active !== false &&
       ['lamp', 'lantern', 'candle', 'candles'].includes(item.asset),
   );
   return (
@@ -198,6 +206,7 @@ export function ShelfGlow({
       />
       {sources.flatMap((item) => {
         const size = itemSize(item),
+          art = decorationBounds(item.asset, size.width, size.height),
           left = entry.x + item.x,
           top = entry.bottom - size.height;
         const candle = item.asset.startsWith('candle');
@@ -216,8 +225,8 @@ export function ShelfGlow({
         return points.map(([px, py], i) => {
           const angle = (item.rotation * Math.PI) / 180,
             fit = 1 / (1 + Math.abs(Math.sin(angle)) * 1.4),
-            dx = (px - 0.5) * size.width * fit,
-            dy = (py - 0.5) * size.height * fit,
+            dx = (art.x + px * art.width - size.width / 2) * fit,
+            dy = (art.y + py * art.height - size.height / 2) * fit,
             x =
               left +
               size.width / 2 +
