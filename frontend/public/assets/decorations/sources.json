@@ -1,0 +1,452 @@
+{
+  "licenseUrl": "https://polyhaven.com/license",
+  "recipe": "scripts/render-bookshelf-decor.py",
+  "assets": {
+    "fern": {
+      "name": "monstera",
+      "sources": [
+        {
+          "id": "fern_02",
+          "name": "Fern 02",
+          "authors": {
+            "Rob Tuytel": "scanning",
+            "Rico Cilliers": "modeling"
+          },
+          "url": "https://polyhaven.com/a/fern_02",
+          "download": "https://dl.polyhaven.org/file/ph-assets/Models/blend/1k/fern_02/fern_02_1k.blend",
+          "md5": "6ad31e08091b148241683d48486be258",
+          "license": "CC0-1.0"
+        },
+        {
+          "id": "planter_pot_clay",
+          "name": "Planter Pot Clay",
+          "authors": {
+            "Amal Kumar": "All"
+          },
+          "url": "https://polyhaven.com/a/planter_pot_clay",
+          "download": "https://dl.polyhaven.org/file/ph-assets/Models/blend/1k/planter_pot_clay/planter_pot_clay_1k.blend",
+          "md5": "e5d1c0290eb9ea835ed37e38145cea47",
+          "license": "CC0-1.0"
+        }
+      ],
+      "adaptation": "Entre páginas",
+      "license": "MIT",
+      "renderSha256": "5e0263c678ae8fc2c894b83fe25081ef8cc91e8204a50a0fecaaef6974454b91"
+    },
+    "monstera": {
+      "name": "Planta tropical",
+      "sources": [
+        {
+          "id": "potted_plant_02",
+          "name": "Potted Plant 02",
+          "authors": {
+            "Rico Cilliers": "All"
+          },
+          "url": "https://polyhaven.com/a/potted_plant_02",
+          "download": "https://dl.polyhaven.org/file/ph-assets/Models/blend/1k/potted_plant_02/potted_plant_02_1k.blend",
+          "md5": "163df1645574fbc0f35e72ee6d212552",
+          "license": "CC0-1.0"
+        }
+      ],
+      "adaptation": "Entre páginas",
+      "license": "MIT",
+      "renderSha256": "9326e45693e70219c5582f58f2ae80e7e3f61a1d08f32a86cc97b4aed8e722dd"
+    },
+    "ivy": {
+      "name": "Planta de interior",
+      "sources": [
+        {
+          "id": "potted_plant_01",
+          "name": "Potted Plant 01",
+          "authors": {
+            "Rico Cilliers": "All"
+          },
+          "url": "https://polyhaven.com/a/potted_plant_01",
+          "download": "https://dl.polyhaven.org/file/ph-assets/Models/blend/1k/potted_plant_01/potted_plant_01_1k.blend",
+          "md5": "bb15d3876df0af34b5da74d3fb30ac32",
+          "license": "CC0-1.0"
+        }
+      ],
+      "adaptation": "Entre páginas",
+      "license": "MIT",
+      "renderSha256": "e56856b0256fb93eb20d6655c5f8f5438a72b28c3766255058aae939a9557523"
+    },
+    "cactus": {
+      "name": "Suculenta",
+      "sources": [
+        {
+          "id": "potted_plant_04",
+          "name": "Potted Plant 04",
+          "authors": {
+            "James Ray Cock": "All"
+          },
+          "url": "https://polyhaven.com/a/potted_plant_04",
+          "download": "https://dl.polyhaven.org/file/ph-assets/Models/blend/1k/potted_plant_04/potted_plant_04_1k.blend",
+          "md5": "23de3ca5b6d56422ed28d9d1f99d7308",
+          "license": "CC0-1.0"
+        }
+      ],
+      "adaptation": "Entre páginas",
+      "license": "MIT",
+      "renderSha256": "1f2ca27b5db8ce3243ae41e17fd57de61e84a689fab140dda2cf7bb86145af29"
+    },
+    "flowers": {
+      "name": "Flores silvestres",
+      "sources": [
+        {
+          "id": "flower_gazania",
+          "name": "Flower Gazania",
+          "authors": {
+            "James Ray Cock": "modeling",
+            "Jenelle van Heerden": "Photography"
+          },
+          "url": "https://polyhaven.com/a/flower_gazania",
+          "download": "https://dl.polyhaven.org/file/ph-assets/Models/blend/1k/flower_gazania/flower_gazania_1k.blend",
+          "md5": "b0585cdb57a9e6e0ff5c556938774dee",
+          "license": "CC0-1.0"
+        },
+        {
+          "id": "planter_pot_clay",
+          "name": "Planter Pot Clay",
+          "authors": {
+            "Amal Kumar": "All"
+          },
+          "url": "https://polyhaven.com/a/planter_pot_clay",
+          "download": "https://dl.polyhaven.org/file/ph-assets/Models/blend/1k/planter_pot_clay/planter_pot_clay_1k.blend",
+          "md5": "e5d1c0290eb9ea835ed37e38145cea47",
+          "license": "CC0-1.0"
+        }
+      ],
+      "adaptation": "Entre páginas",
+      "license": "MIT",
+      "renderSha256": "2bbc5d72c859ef6c87244b448a23d5a3a3aa8604e298dd2aea8f5346328d7227"
+    },
+    "bonsai": {
+      "name": "Bonsái",
+      "sources": [
+        {
+          "id": "potted_plant_04",
+          "name": "Potted Plant 04",
+          "authors": {
+            "James Ray Cock": "All"
+          },
+          "url": "https://polyhaven.com/a/potted_plant_04",
+          "download": "https://dl.polyhaven.org/file/ph-assets/Models/blend/1k/potted_plant_04/potted_plant_04_1k.blend",
+          "md5": "23de3ca5b6d56422ed28d9d1f99d7308",
+          "license": "CC0-1.0"
+        }
+      ],
+      "adaptation": "Entre páginas",
+      "license": "MIT",
+      "renderSha256": "02e8d727b17cde840c3a1c5e411de0f19e8736e8b8a059bf7440355c76995dd1"
+    },
+    "pot": {
+      "name": "Maceta terracota",
+      "sources": [
+        {
+          "id": "planter_pot_clay",
+          "name": "Planter Pot Clay",
+          "authors": {
+            "Amal Kumar": "All"
+          },
+          "url": "https://polyhaven.com/a/planter_pot_clay",
+          "download": "https://dl.polyhaven.org/file/ph-assets/Models/blend/1k/planter_pot_clay/planter_pot_clay_1k.blend",
+          "md5": "e5d1c0290eb9ea835ed37e38145cea47",
+          "license": "CC0-1.0"
+        }
+      ],
+      "adaptation": "Entre páginas",
+      "license": "MIT",
+      "renderSha256": "3e7a35b53873e5f8634cc0b3e564776cc53957785aabddba4ea09af9f9d78dc8"
+    },
+    "ceramic-pot": {
+      "name": "Maceta cerámica",
+      "sources": [
+        {
+          "id": "potted_plant_04",
+          "name": "Potted Plant 04",
+          "authors": {
+            "James Ray Cock": "All"
+          },
+          "url": "https://polyhaven.com/a/potted_plant_04",
+          "download": "https://dl.polyhaven.org/file/ph-assets/Models/blend/1k/potted_plant_04/potted_plant_04_1k.blend",
+          "md5": "23de3ca5b6d56422ed28d9d1f99d7308",
+          "license": "CC0-1.0"
+        }
+      ],
+      "adaptation": "Entre páginas",
+      "license": "MIT",
+      "renderSha256": "355a29fdf908fa0d2e9a48dcf864441344a0519a5b023373e9859c4b4d8b0a7d"
+    },
+    "vase": {
+      "name": "Jarrón alto",
+      "sources": [
+        {
+          "id": "ceramic_vase_01",
+          "name": "Ceramic Vase 01",
+          "authors": {
+            "James Ray Cock": "All"
+          },
+          "url": "https://polyhaven.com/a/ceramic_vase_01",
+          "download": "https://dl.polyhaven.org/file/ph-assets/Models/blend/1k/ceramic_vase_01/ceramic_vase_01_1k.blend",
+          "md5": "d0a1e5c955c6eee50d70682f26f20021",
+          "license": "CC0-1.0"
+        }
+      ],
+      "adaptation": "Entre páginas",
+      "license": "MIT",
+      "renderSha256": "756887d86c34edb0eac85d97b4aa15712477e392d8154c9dc4495dcc87b202d2"
+    },
+    "round-vase": {
+      "name": "arch",
+      "sources": [
+        {
+          "id": "ceramic_vase_02",
+          "name": "Ceramic Vase 02",
+          "authors": {
+            "James Ray Cock": "All"
+          },
+          "url": "https://polyhaven.com/a/ceramic_vase_02",
+          "download": "https://dl.polyhaven.org/file/ph-assets/Models/blend/1k/ceramic_vase_02/ceramic_vase_02_1k.blend",
+          "md5": "60343083dbfe4fb1cfff66365ddd0e33",
+          "license": "CC0-1.0"
+        }
+      ],
+      "adaptation": "Entre páginas",
+      "license": "MIT",
+      "renderSha256": "10389e6197b18f0e5e413dddc799b95758088d52927882fccfc748b4d85708b5"
+    },
+    "candle": {
+      "name": "Vela",
+      "sources": [
+        {
+          "id": "brass_candleholders",
+          "name": "Brass Candleholders",
+          "authors": {
+            "Tina": "All"
+          },
+          "url": "https://polyhaven.com/a/brass_candleholders",
+          "download": "https://dl.polyhaven.org/file/ph-assets/Models/blend/1k/brass_candleholders/brass_candleholders_1k.blend",
+          "md5": "412ad9c5b4401461bc0e6790f94f2eb2",
+          "license": "CC0-1.0"
+        }
+      ],
+      "adaptation": "Entre páginas",
+      "license": "MIT",
+      "renderSha256": "26f6585ed991f8e9469fed85cb015f9728c4b5bc46edbb1dd5e1b00a85b4e973"
+    },
+    "candles": {
+      "name": "Tres velas",
+      "sources": [
+        {
+          "id": "brass_candleholders",
+          "name": "Brass Candleholders",
+          "authors": {
+            "Tina": "All"
+          },
+          "url": "https://polyhaven.com/a/brass_candleholders",
+          "download": "https://dl.polyhaven.org/file/ph-assets/Models/blend/1k/brass_candleholders/brass_candleholders_1k.blend",
+          "md5": "412ad9c5b4401461bc0e6790f94f2eb2",
+          "license": "CC0-1.0"
+        }
+      ],
+      "adaptation": "Entre páginas",
+      "license": "MIT",
+      "renderSha256": "52e86cee5a9f184310d5680832b3e39b50722bad7a5e5c96ef388acbfe22447a"
+    },
+    "lamp": {
+      "name": "mug",
+      "sources": [
+        {
+          "id": "desk_lamp_arm_01",
+          "name": "Desk Lamp Arm 01",
+          "authors": {
+            "Yann Kervran": "Rigging",
+            "Kuutti Siitonen": "Modeling & texturing"
+          },
+          "url": "https://polyhaven.com/a/desk_lamp_arm_01",
+          "download": "https://dl.polyhaven.org/file/ph-assets/Models/blend/1k/desk_lamp_arm_01/desk_lamp_arm_01_1k.blend",
+          "md5": "c7ca1894dd10efbb8f846e9e7f9d34f3",
+          "license": "CC0-1.0"
+        }
+      ],
+      "adaptation": "Entre páginas",
+      "license": "MIT",
+      "renderSha256": "f15a760d68e74532f0849702e74900c4777f1c925cd3029ad11a9be619a16bdb"
+    },
+    "lantern": {
+      "name": "moon",
+      "sources": [
+        {
+          "id": "wooden_lantern_01",
+          "name": "Wooden Lantern 01",
+          "authors": {
+            "James Ray Cock": "All"
+          },
+          "url": "https://polyhaven.com/a/wooden_lantern_01",
+          "download": "https://dl.polyhaven.org/file/ph-assets/Models/blend/1k/wooden_lantern_01/wooden_lantern_01_1k.blend",
+          "md5": "080ef40b1681445143654fa5a4976e67",
+          "license": "CC0-1.0"
+        }
+      ],
+      "adaptation": "Entre páginas",
+      "license": "MIT",
+      "renderSha256": "043e4fcba94039bd4f1f0bec517f820caba48e29b17e9f45b1b3ec05925b192a"
+    },
+    "portrait": {
+      "name": "Marco pequeño",
+      "sources": [
+        {
+          "id": "standing_picture_frame_01",
+          "name": "Standing Picture Frame 01",
+          "authors": {
+            "James Ray Cock": "All"
+          },
+          "url": "https://polyhaven.com/a/standing_picture_frame_01",
+          "download": "https://dl.polyhaven.org/file/ph-assets/Models/blend/1k/standing_picture_frame_01/standing_picture_frame_01_1k.blend",
+          "md5": "6f27aed960c170ad6480a80eac9f6891",
+          "license": "CC0-1.0"
+        }
+      ],
+      "adaptation": "Entre páginas",
+      "license": "MIT",
+      "renderSha256": "fc8d997c54e53234ed59f1250e40c818f47f20dabb2d1165eb8d8d403a84b2af"
+    },
+    "landscape": {
+      "name": "Marco de paisaje",
+      "sources": [
+        {
+          "id": "standing_picture_frame_02",
+          "name": "Standing Picture Frame 02",
+          "authors": {
+            "James Ray Cock": "All"
+          },
+          "url": "https://polyhaven.com/a/standing_picture_frame_02",
+          "download": "https://dl.polyhaven.org/file/ph-assets/Models/blend/1k/standing_picture_frame_02/standing_picture_frame_02_1k.blend",
+          "md5": "6dc9f5af03d448a597461ada301b8c73",
+          "license": "CC0-1.0"
+        }
+      ],
+      "adaptation": "Entre páginas",
+      "license": "MIT",
+      "renderSha256": "288f8fae135d5ce893f5c94a5402e3d414b9e26e931a739088c710f8d26bf7fa"
+    },
+    "cat": {
+      "name": "Gato de cerámica",
+      "sources": [
+        {
+          "id": "concrete_cat_statue",
+          "name": "Concrete Cat Statue",
+          "authors": {
+            "Rico Cilliers": "Guidance",
+            "Riley Queen": "All"
+          },
+          "url": "https://polyhaven.com/a/concrete_cat_statue",
+          "download": "https://dl.polyhaven.org/file/ph-assets/Models/blend/1k/concrete_cat_statue/concrete_cat_statue_1k.blend",
+          "md5": "04676bb61f12ae0c12555d2e7c25398c",
+          "license": "CC0-1.0"
+        }
+      ],
+      "adaptation": "Entre páginas",
+      "license": "MIT",
+      "renderSha256": "fb23a0aa7c3885409cc265890061889f212f12f93841788e02b943f5c1034119"
+    },
+    "bird": {
+      "name": "Pájaro",
+      "sources": [],
+      "adaptation": "Entre páginas",
+      "license": "MIT",
+      "renderSha256": "27731c7d7df54f1a407fa20c0181c6f62550d3933699d2d5e9c71abb88de191e"
+    },
+    "moon": {
+      "name": "Luna",
+      "sources": [],
+      "adaptation": "Entre páginas",
+      "license": "MIT",
+      "renderSha256": "dff3b95453e54b7feda0e4381db2ff4b80ce6feea44244825f1bb8a098314978"
+    },
+    "star": {
+      "name": "Estrella",
+      "sources": [],
+      "adaptation": "Entre páginas",
+      "license": "MIT",
+      "renderSha256": "ed6268b6b0d2ce58b2b4dee4c8e6f13694ed0f603bd32fc1dac5f2354fa41f2c"
+    },
+    "arch": {
+      "name": "portrait",
+      "sources": [],
+      "adaptation": "Entre páginas",
+      "license": "MIT",
+      "renderSha256": "ae34ffa5c459f5973c1a110d32981445f8404ff54d0d4cbeb94d2c5a2cd1f840"
+    },
+    "mountain": {
+      "name": "Sujetalibros montaña",
+      "sources": [],
+      "adaptation": "Entre páginas",
+      "license": "MIT",
+      "renderSha256": "8f0fa8962a762f0c6cc7adc56f3747bfe3ce120d4c6c753da9f3afcb9fc79411"
+    },
+    "divider": {
+      "name": "Separador dorado",
+      "sources": [],
+      "adaptation": "Entre páginas",
+      "license": "MIT",
+      "renderSha256": "1fd3443e4902278cdcb7689bbdd07a2b5e397e6b70b7e95c5b5cfa7c5585b34c"
+    },
+    "label": {
+      "name": "Separador con etiqueta",
+      "sources": [],
+      "adaptation": "Entre páginas",
+      "license": "MIT",
+      "renderSha256": "562a23db23a559ad95575378ba060687f804eba3bf04db95efb96d4cab35b7f9"
+    },
+    "clock": {
+      "name": "Reloj",
+      "sources": [
+        {
+          "id": "mantel_clock_01",
+          "name": "Mantel Clock 01",
+          "authors": {
+            "Yann Kervran": "Rigging",
+            "Rico Cilliers": "Modeling & Texturing"
+          },
+          "url": "https://polyhaven.com/a/mantel_clock_01",
+          "download": "https://dl.polyhaven.org/file/ph-assets/Models/blend/1k/mantel_clock_01/mantel_clock_01_1k.blend",
+          "md5": "9a6b2df69666a8e7c449db034cc64602",
+          "license": "CC0-1.0"
+        }
+      ],
+      "adaptation": "Entre páginas",
+      "license": "MIT",
+      "renderSha256": "4dc6086e30aaaa6174290e7e13f27cb329fe2303aa858e0e4cad780fe9f9e015"
+    },
+    "mug": {
+      "name": "Taza de té",
+      "sources": [
+        {
+          "id": "tea_set_01",
+          "name": "Tea Set 01",
+          "authors": {
+            "James Ray Cock": "texturing",
+            "Rico Cilliers": "modeling",
+            "Jurita Burger": "graphic design"
+          },
+          "url": "https://polyhaven.com/a/tea_set_01",
+          "download": "https://dl.polyhaven.org/file/ph-assets/Models/blend/1k/tea_set_01/tea_set_01_1k.blend",
+          "md5": "a48bee92cba3abe48f1a91698ff24054",
+          "license": "CC0-1.0"
+        }
+      ],
+      "adaptation": "Entre páginas",
+      "license": "MIT",
+      "renderSha256": "8df967573796cc7b8825e2d14661bab4954e9dd74f22374840f2c6286403128a"
+    },
+    "crystal": {
+      "name": "star",
+      "sources": [],
+      "adaptation": "Entre páginas",
+      "license": "MIT",
+      "renderSha256": "247c9e826b6f230438862db5a1257524280be70a0283233823fb37dfeda24300"
+    }
+  }
+}

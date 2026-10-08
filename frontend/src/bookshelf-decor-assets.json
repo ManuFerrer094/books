@@ -1,0 +1,218 @@
+{
+  "fern": {
+    "src": "/assets/decorations/fern.webp",
+    "thumbnail": "/assets/decorations/fern.thumb.webp",
+    "mask": "/assets/decorations/fern.mask.webp",
+    "naturalColor": "#70814d",
+    "width": 1024,
+    "height": 871
+  },
+  "monstera": {
+    "src": "/assets/decorations/monstera.webp",
+    "thumbnail": "/assets/decorations/monstera.thumb.webp",
+    "mask": "/assets/decorations/monstera.mask.webp",
+    "naturalColor": "#527745",
+    "width": 834,
+    "height": 951
+  },
+  "ivy": {
+    "src": "/assets/decorations/ivy.webp",
+    "thumbnail": "/assets/decorations/ivy.thumb.webp",
+    "mask": "/assets/decorations/ivy.mask.webp",
+    "naturalColor": "#66814d",
+    "width": 406,
+    "height": 938
+  },
+  "cactus": {
+    "src": "/assets/decorations/cactus.webp",
+    "thumbnail": "/assets/decorations/cactus.thumb.webp",
+    "mask": "/assets/decorations/cactus.mask.webp",
+    "naturalColor": "#66814d",
+    "width": 617,
+    "height": 937
+  },
+  "flowers": {
+    "src": "/assets/decorations/flowers.webp",
+    "thumbnail": "/assets/decorations/flowers.thumb.webp",
+    "mask": "/assets/decorations/flowers.mask.webp",
+    "naturalColor": "#68854a",
+    "width": 714,
+    "height": 730
+  },
+  "bonsai": {
+    "src": "/assets/decorations/bonsai.webp",
+    "thumbnail": "/assets/decorations/bonsai.thumb.webp",
+    "mask": "/assets/decorations/bonsai.mask.webp",
+    "naturalColor": "#53734a",
+    "width": 580,
+    "height": 933
+  },
+  "pot": {
+    "src": "/assets/decorations/pot.webp",
+    "thumbnail": "/assets/decorations/pot.thumb.webp",
+    "mask": "/assets/decorations/pot.mask.webp",
+    "naturalColor": "#bb805d",
+    "width": 1024,
+    "height": 882
+  },
+  "ceramic-pot": {
+    "src": "/assets/decorations/ceramic-pot.webp",
+    "thumbnail": "/assets/decorations/ceramic-pot.thumb.webp",
+    "mask": "/assets/decorations/ceramic-pot.mask.webp",
+    "naturalColor": "#d5d4c6",
+    "width": 1014,
+    "height": 973
+  },
+  "vase": {
+    "src": "/assets/decorations/vase.webp",
+    "thumbnail": "/assets/decorations/vase.thumb.webp",
+    "mask": "/assets/decorations/vase.mask.webp",
+    "naturalColor": "#dbd9ce",
+    "width": 480,
+    "height": 949
+  },
+  "round-vase": {
+    "src": "/assets/decorations/round-vase.webp",
+    "thumbnail": "/assets/decorations/round-vase.thumb.webp",
+    "mask": "/assets/decorations/round-vase.mask.webp",
+    "naturalColor": "#bf9b82",
+    "width": 664,
+    "height": 958
+  },
+  "candle": {
+    "src": "/assets/decorations/candle.webp",
+    "thumbnail": "/assets/decorations/candle.thumb.webp",
+    "mask": "/assets/decorations/candle.mask.webp",
+    "naturalColor": "#b89851",
+    "width": 254,
+    "height": 941
+  },
+  "candles": {
+    "src": "/assets/decorations/candles.webp",
+    "thumbnail": "/assets/decorations/candles.thumb.webp",
+    "mask": "/assets/decorations/candles.mask.webp",
+    "naturalColor": "#b89851",
+    "width": 1019,
+    "height": 941
+  },
+  "lamp": {
+    "src": "/assets/decorations/lamp.webp",
+    "thumbnail": "/assets/decorations/lamp.thumb.webp",
+    "mask": "/assets/decorations/lamp.mask.webp",
+    "naturalColor": "#85816e",
+    "width": 522,
+    "height": 858
+  },
+  "lantern": {
+    "src": "/assets/decorations/lantern.webp",
+    "thumbnail": "/assets/decorations/lantern.thumb.webp",
+    "mask": "/assets/decorations/lantern.mask.webp",
+    "naturalColor": "#997957",
+    "width": 475,
+    "height": 942
+  },
+  "portrait": {
+    "src": "/assets/decorations/portrait.webp",
+    "thumbnail": "/assets/decorations/portrait.thumb.webp",
+    "mask": "/assets/decorations/portrait.mask.webp",
+    "naturalColor": "#54514c",
+    "width": 755,
+    "height": 940
+  },
+  "landscape": {
+    "src": "/assets/decorations/landscape.webp",
+    "thumbnail": "/assets/decorations/landscape.thumb.webp",
+    "mask": "/assets/decorations/landscape.mask.webp",
+    "naturalColor": "#b39977",
+    "width": 765,
+    "height": 941
+  },
+  "cat": {
+    "src": "/assets/decorations/cat.webp",
+    "thumbnail": "/assets/decorations/cat.thumb.webp",
+    "mask": "/assets/decorations/cat.mask.webp",
+    "naturalColor": "#d6d2c3",
+    "width": 509,
+    "height": 942
+  },
+  "bird": {
+    "src": "/assets/decorations/bird.webp",
+    "thumbnail": "/assets/decorations/bird.thumb.webp",
+    "mask": "/assets/decorations/bird.mask.webp",
+    "naturalColor": "#c7d2c8",
+    "width": 737,
+    "height": 943
+  },
+  "moon": {
+    "src": "/assets/decorations/moon.webp",
+    "thumbnail": "/assets/decorations/moon.thumb.webp",
+    "mask": "/assets/decorations/moon.mask.webp",
+    "naturalColor": "#bda168",
+    "width": 585,
+    "height": 942
+  },
+  "star": {
+    "src": "/assets/decorations/star.webp",
+    "thumbnail": "/assets/decorations/star.thumb.webp",
+    "mask": "/assets/decorations/star.mask.webp",
+    "naturalColor": "#bda168",
+    "width": 671,
+    "height": 942
+  },
+  "arch": {
+    "src": "/assets/decorations/arch.webp",
+    "thumbnail": "/assets/decorations/arch.thumb.webp",
+    "mask": "/assets/decorations/arch.mask.webp",
+    "naturalColor": "#d7cec0",
+    "width": 885,
+    "height": 946
+  },
+  "mountain": {
+    "src": "/assets/decorations/mountain.webp",
+    "thumbnail": "/assets/decorations/mountain.thumb.webp",
+    "mask": "/assets/decorations/mountain.mask.webp",
+    "naturalColor": "#a8aba7",
+    "width": 1024,
+    "height": 937
+  },
+  "divider": {
+    "src": "/assets/decorations/divider.webp",
+    "thumbnail": "/assets/decorations/divider.thumb.webp",
+    "mask": "/assets/decorations/divider.mask.webp",
+    "naturalColor": "#bda168",
+    "width": 236,
+    "height": 940
+  },
+  "label": {
+    "src": "/assets/decorations/label.webp",
+    "thumbnail": "/assets/decorations/label.thumb.webp",
+    "mask": "/assets/decorations/label.mask.webp",
+    "naturalColor": "#bda168",
+    "width": 377,
+    "height": 941
+  },
+  "clock": {
+    "src": "/assets/decorations/clock.webp",
+    "thumbnail": "/assets/decorations/clock.thumb.webp",
+    "mask": "/assets/decorations/clock.mask.webp",
+    "naturalColor": "#917657",
+    "width": 1024,
+    "height": 496
+  },
+  "mug": {
+    "src": "/assets/decorations/mug.webp",
+    "thumbnail": "/assets/decorations/mug.thumb.webp",
+    "mask": "/assets/decorations/mug.mask.webp",
+    "naturalColor": "#dbd4c5",
+    "width": 1024,
+    "height": 548
+  },
+  "crystal": {
+    "src": "/assets/decorations/crystal.webp",
+    "thumbnail": "/assets/decorations/crystal.thumb.webp",
+    "mask": "/assets/decorations/crystal.mask.webp",
+    "naturalColor": "#b4a3c3",
+    "width": 761,
+    "height": 944
+  }
+}

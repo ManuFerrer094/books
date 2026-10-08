@@ -8,6 +8,7 @@ import { AuthClientFactory } from '../auth/auth-client.factory.js';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { AuthRequest } from '../auth/auth.guard.js';
 import { migrateDesign } from '../library/bookshelf-design.js';
+import { atmosphereForScene } from '../library/bookshelf-atmosphere.js';
 
 describe('AccountService', () => {
   const owner = '11111111-1111-4111-8111-111111111111';
@@ -155,6 +156,7 @@ describe('AccountService', () => {
   });
   it('exports complete private data with the user token, never with the admin client', async () => {
     const design = migrateDesign([{ book_id: 7 }]);
+    design.atmosphere = atmosphereForScene('midnight');
     const chains: Record<string, any> = {};
     const row = {
       user_id: owner,

@@ -5,6 +5,7 @@ import {
   useState,
   type PointerEvent,
   type Ref,
+  type CSSProperties,
 } from 'react';
 import {
   sceneGeometry,
@@ -14,8 +15,25 @@ import {
   type SceneItem,
 } from '../../src/library/bookshelf-design';
 import { spineStyle, textColor } from './bookshelf-layout';
+import { decorAction, shelfPowered } from '../../src/library/bookshelf-craft';
+import {
+  ShelfFixtures,
+  FurnitureDetails,
+  FurnitureBack,
+  DecorationEffects,
+} from './BookshelfCraft';
 import { supabase } from './supabase';
 import type { LibraryBook } from './types';
+import {
+  LightingDefs,
+  LightingBackground,
+  LightingForeground,
+} from './BookshelfLighting';
+import {
+  decorationAssets,
+  decorationColor,
+  decorationTintMatrix,
+} from './bookshelf-decor';
 
 const woods = {
   oak: ['#c59b66', '#8b613c', '#e3c493'],
@@ -85,7 +103,100 @@ function useScenePhotos(books: LibraryBook[]) {
   return { photos, ready };
 }
 
-export function DecorArt({ asset, color }: { asset: string; color: string }) {
+export function DecorArt({
+  asset,
+  color,
+  thumbnail = false,
+}: {
+  asset: string;
+  color: string;
+  thumbnail?: boolean;
+}) {
+  const id = useId().replace(/:/g, '');
+  const [failedAsset, setFailedAsset] = useState<string | null>(null);
+  const resource = decorationAssets[asset];
+  const failed = failedAsset === asset || !resource;
+  const tint = decorationColor(asset, color);
+  const recolored =
+    !thumbnail && resource && tint.toLowerCase() !== resource.naturalColor;
+  const src = resource && (thumbnail ? resource.thumbnail : resource.src);
+  const width = failed ? 140 : resource.width;
+  const height = failed ? 200 : resource.height;
+  const onError = () => setFailedAsset(asset);
+  return (
+    <svg
+      viewBox={`0 0 ${width} ${height}`}
+      width="100%"
+      height="100%"
+      preserveAspectRatio="xMidYMax meet"
+      aria-hidden="true"
+      data-decor-art={asset}
+      data-decoration-unavailable={failed ? 'true' : undefined}
+    >
+      {!failed && recolored && (
+        <defs>
+          <mask
+            id={`${id}-material`}
+            maskUnits="userSpaceOnUse"
+            x="0"
+            y="0"
+            width={width}
+            height={height}
+            style={{ maskType: 'alpha' }}
+          >
+            <image
+              href={resource.mask}
+              width={width}
+              height={height}
+              preserveAspectRatio="xMidYMax meet"
+              onError={onError}
+            />
+          </mask>
+          <filter
+            id={`${id}-tint`}
+            colorInterpolationFilters="sRGB"
+            x="0"
+            y="0"
+            width="100%"
+            height="100%"
+          >
+            <feColorMatrix
+              type="matrix"
+              values={decorationTintMatrix(tint, resource.naturalColor)}
+            />
+          </filter>
+        </defs>
+      )}
+      <g data-decor-fallback="true" display={failed ? 'inline' : 'none'}>
+        <FallbackDecorArt asset={asset} color={tint} />
+      </g>
+      {!failed && (
+        <g data-decor-resource="true">
+          <image
+            href={src}
+            width={width}
+            height={height}
+            preserveAspectRatio="xMidYMax meet"
+            onError={onError}
+          />
+          {recolored && (
+            <image
+              href={src}
+              width={width}
+              height={height}
+              preserveAspectRatio="xMidYMax meet"
+              filter={`url(#${id}-tint)`}
+              mask={`url(#${id}-material)`}
+              onError={onError}
+            />
+          )}
+        </g>
+      )}
+    </svg>
+  );
+}
+
+function FallbackDecorArt({ asset, color }: { asset: string; color: string }) {
   const category = decorations.find((entry) => entry[0] === asset)?.[2];
   const plant = category === 'plant';
   return (
@@ -582,13 +693,112 @@ function BookArt({
   );
 }
 
+function BookInHand({
+  entry,
+  photos,
+  width,
+  height,
+  depth,
+  progress,
+  tilt,
+  restAngle,
+  typography,
+  onOpen,
+}: {
+  entry: LibraryBook;
+  photos: Record<string, string>;
+  width: number;
+  height: number;
+  depth: number;
+  progress: number;
+  tilt: number;
+  restAngle: number;
+  typography: string;
+  onOpen?: (id: number) => void;
+}) {
+  const [ready, setReady] = useState(false);
+  useEffect(() => {
+    const frame = requestAnimationFrame(() => setReady(true));
+    return () => cancelAnimationFrame(frame);
+  }, []);
+  const p = ready ? progress : 0;
+  return (
+    <div
+      className="book-in-hand-stage"
+      style={
+        {
+          '--book-width': `${width}px`,
+          '--book-height': `${height}px`,
+          '--book-depth': `${depth}px`,
+          '--book-angle': `${restAngle * (1 - p)}deg`,
+          '--book-tilt': `${tilt * (1 - p)}deg`,
+          '--book-rise': `${-(tilt ? height * 0.55 : 36) * p}px`,
+          '--book-scale': 1 + p * 0.24,
+          '--book-color': spineStyle(entry).color,
+        } as CSSProperties
+      }
+    >
+      <button
+        type="button"
+        className="book-in-hand"
+        aria-label={`Abrir ficha de ${entry.book.title}`}
+        onClick={() => onOpen?.(entry.book_id)}
+      >
+        <span className="book-in-hand-face book-in-hand-front">
+          <svg
+            viewBox={`0 0 ${width} ${height}`}
+            width={width}
+            height={height}
+            aria-hidden="true"
+          >
+            <BookArt
+              entry={entry}
+              mode="cover"
+              width={width}
+              height={height}
+              photos={photos}
+              typography={typography}
+            />
+          </svg>
+        </span>
+        <span className="book-in-hand-face book-in-hand-spine">
+          <svg
+            viewBox={`0 0 ${depth} ${height}`}
+            width={depth}
+            height={height}
+            aria-hidden="true"
+          >
+            <BookArt
+              entry={entry}
+              mode="upright"
+              width={depth}
+              height={height}
+              photos={photos}
+              typography={typography}
+            />
+          </svg>
+        </span>
+        <span className="book-in-hand-face book-in-hand-pages" />
+        <span className="book-in-hand-face book-in-hand-back" />
+      </button>
+    </div>
+  );
+}
+
 export interface SceneProps {
+  onInteract?: (item: SceneItem) => void;
+  onPower?: (id: string) => void;
   design: BookshelfDesign;
   books: LibraryBook[];
   selected?: string[];
   highlighted?: Set<number>;
   designing?: boolean;
-  onSelect?: (item: SceneItem, additive: boolean) => void;
+  onSelect?: (
+    item: SceneItem,
+    additive: boolean,
+    bookId?: number,
+    direct?: boolean,
+  ) => void;
   onOpen?: (id: number) => void;
   onPointerDown?: (event: PointerEvent<SVGGElement>, item: SceneItem) => void;
   preview?: {
@@ -599,6 +809,7 @@ export interface SceneProps {
   } | null;
   svgRef?: Ref<SVGSVGElement>;
   caseId?: string;
+  inspection?: { bookId: number; progress: number } | null;
 }
 export default function BookshelfScene({
   design,
@@ -608,10 +819,13 @@ export default function BookshelfScene({
   designing,
   onSelect,
   onOpen,
+  onInteract,
+  onPower,
   onPointerDown,
   preview,
   svgRef,
   caseId,
+  inspection,
 }: SceneProps) {
   const uid = useId().replace(/:/g, ''),
     { photos, ready } = useScenePhotos(books),
@@ -661,19 +875,46 @@ export default function BookshelfScene({
             : undefined
         }
         transform={`translate(${x} ${y})`}
-        opacity={ghost ? 0.6 : matching ? 1 : 0.22}
-        role={ghost || !interactive ? undefined : 'button'}
-        tabIndex={ghost || !interactive ? undefined : 0}
+        opacity={
+          !ghost &&
+          inspection?.bookId === item.book_ids[0] &&
+          item.kind === 'book'
+            ? 0
+            : ghost
+              ? 0.6
+              : matching
+                ? 1
+                : 0.22
+        }
+        pointerEvents={
+          !ghost &&
+          inspection?.bookId === item.book_ids[0] &&
+          item.kind === 'book'
+            ? 'none'
+            : undefined
+        }
+        role={
+          ghost || !interactive
+            ? undefined
+            : item.kind === 'stack'
+              ? 'group'
+              : 'button'
+        }
+        tabIndex={
+          ghost || !interactive ? undefined : item.kind === 'stack' ? -1 : 0
+        }
         aria-label={
           ghost || !interactive
             ? undefined
-            : `${designing ? 'Seleccionar' : 'Ver'} ${label}`
+            : `${designing ? 'Seleccionar' : item.kind === 'decor' ? (decorAction(item) ?? 'Ver') : 'Ver'} ${label}`
         }
         aria-pressed={
-          designing && !ghost ? selectedSet.has(item.id) : undefined
+          designing && !ghost && item.kind !== 'stack'
+            ? selectedSet.has(item.id)
+            : undefined
         }
         onClick={
-          ghost
+          ghost || item.kind === 'stack'
             ? undefined
             : (event) =>
                 designing
@@ -683,17 +924,24 @@ export default function BookshelfScene({
                     )
                   : item.book_ids.length
                     ? onOpen?.(item.book_ids[0])
-                    : undefined
+                    : onInteract?.(item)
         }
         onKeyDown={
-          ghost
+          ghost || item.kind === 'stack'
             ? undefined
             : (event) => {
                 if (event.key === 'Enter' || event.key === ' ') {
                   event.preventDefault();
                   designing
-                    ? onSelect?.(item, event.shiftKey)
-                    : item.book_ids.length && onOpen?.(item.book_ids[0]);
+                    ? onSelect?.(
+                        item,
+                        event.shiftKey || event.ctrlKey || event.metaKey,
+                        undefined,
+                        true,
+                      )
+                    : item.book_ids.length
+                      ? onOpen?.(item.book_ids[0])
+                      : onInteract?.(item);
                 }
               }
         }
@@ -724,8 +972,33 @@ export default function BookshelfScene({
             transform={`translate(${width / 2} ${height / 2}) rotate(${item.rotation}) scale(${1 / (1 + Math.abs(Math.sin((item.rotation * Math.PI) / 180)) * 1.4)}) translate(${-width / 2} ${-height / 2})`}
           >
             <svg width={width} height={height}>
-              <DecorArt asset={item.asset} color={item.color} />
+              <g
+                className={
+                  interactive &&
+                  design.atmosphere?.lighting.motion !== false &&
+                  item.active &&
+                  [
+                    'fern',
+                    'monstera',
+                    'ivy',
+                    'cactus',
+                    'flowers',
+                    'bonsai',
+                  ].includes(item.asset)
+                    ? 'craft-plant-awake'
+                    : undefined
+                }
+              >
+                <DecorArt asset={item.asset} color={item.color} />
+              </g>
             </svg>
+            <DecorationEffects
+              item={item}
+              powered={shelfPowered(shelf.bookcase, shelf.shelf)}
+              animate={
+                interactive && design.atmosphere?.lighting.motion !== false
+              }
+            />
           </g>
         ) : item.kind === 'stack' ? (
           (() => {
@@ -737,35 +1010,89 @@ export default function BookshelfScene({
               (sum, entry) => sum + spineStyle(entry).width,
               0,
             );
+            const longest = Math.max(
+              ...entries.map((entry) => spineStyle(entry).height),
+            );
             return entries.map((entry, i) => {
               const h = (spineStyle(entry).width / total) * height;
+              const w = (spineStyle(entry).height / longest) * (width - 4);
               bottom -= h;
               return (
                 <g
                   key={entry.book_id}
+                  className="scene-item"
+                  data-shelf-book={
+                    interactive && !ghost ? entry.book_id : undefined
+                  }
                   transform={`translate(${i % 2 ? 4 : 0} ${bottom})`}
+                  opacity={
+                    !ghost && inspection?.bookId === entry.book_id
+                      ? 0
+                      : !highlighted ||
+                          highlighted.has(entry.book_id) ||
+                          !matching
+                        ? 1
+                        : 0.22
+                  }
+                  pointerEvents={
+                    !ghost && inspection?.bookId === entry.book_id
+                      ? 'none'
+                      : undefined
+                  }
+                  role={interactive && !ghost ? 'button' : undefined}
+                  tabIndex={interactive && !ghost ? 0 : undefined}
+                  aria-label={
+                    interactive && !ghost
+                      ? `${designing ? 'Seleccionar' : 'Ver'} ${entry.book.title}`
+                      : undefined
+                  }
+                  aria-pressed={
+                    designing && !ghost ? selectedSet.has(item.id) : undefined
+                  }
+                  onClick={
+                    ghost || !interactive
+                      ? undefined
+                      : (event) => {
+                          event.stopPropagation();
+                          if (designing)
+                            onSelect?.(
+                              item,
+                              event.shiftKey || event.ctrlKey || event.metaKey,
+                              entry.book_id,
+                            );
+                          else onOpen?.(entry.book_id);
+                        }
+                  }
+                  onKeyDown={
+                    ghost || !interactive
+                      ? undefined
+                      : (event) => {
+                          if (event.key !== 'Enter' && event.key !== ' ')
+                            return;
+                          event.preventDefault();
+                          event.stopPropagation();
+                          if (designing)
+                            onSelect?.(
+                              item,
+                              event.shiftKey || event.ctrlKey || event.metaKey,
+                              entry.book_id,
+                              true,
+                            );
+                          else onOpen?.(entry.book_id);
+                        }
+                  }
                 >
-                  <rect
-                    width={width - 4}
-                    height={h}
-                    rx="2"
-                    fill={spineStyle(entry).color}
-                  />
-                  <path d={`M3 3H${width - 7}`} stroke="#ffffff35" />
-                  <text
-                    x={width / 2}
-                    y={h / 2 + 3}
-                    textAnchor="middle"
-                    fill={textColor(spineStyle(entry).color)}
-                    fontSize="9"
-                    textLength={Math.min(
-                      width - 20,
-                      entry.book.title.length * 5,
-                    )}
-                    lengthAdjust="spacingAndGlyphs"
-                  >
-                    {entry.book.title.slice(0, 50)}
-                  </text>
+                  <title>{entry.book.title}</title>
+                  <g transform={`translate(0 ${h}) rotate(-90)`}>
+                    <BookArt
+                      entry={entry}
+                      mode="upright"
+                      width={h}
+                      height={w}
+                      photos={photos}
+                      typography={item.asset || 'classic'}
+                    />
+                  </g>
                 </g>
               );
             });
@@ -808,6 +1135,75 @@ export default function BookshelfScene({
       </g>
     );
   }
+  function renderInspection() {
+    if (!inspection || !interactive) return null;
+    const item = design.items.find((item) =>
+      item.book_ids.includes(inspection.bookId),
+    );
+    const entry = bookMap.get(inspection.bookId);
+    const shelf = geometry.shelves.find(
+      (shelf) => shelf.shelf.id === item?.shelf_id,
+    );
+    if (!item || !entry || !shelf) return null;
+    const size = itemSize(item);
+    let height = size.height,
+      depth = spineStyle(entry).width * item.scale;
+    let cx = shelf.x + item.x + size.width / 2,
+      cy = shelf.bottom - size.height / 2;
+    if (item.kind === 'stack') {
+      const entries = item.book_ids
+        .map((id) => bookMap.get(id))
+        .filter((book): book is LibraryBook => !!book);
+      const total = entries.reduce(
+        (sum, book) => sum + spineStyle(book).width,
+        0,
+      );
+      const longest = Math.max(
+        ...entries.map((book) => spineStyle(book).height),
+      );
+      let bottom = size.height;
+      for (const [i, book] of entries.entries()) {
+        const h = (spineStyle(book).width / total) * size.height;
+        bottom -= h;
+        if (book.book_id !== entry.book_id) continue;
+        height = (spineStyle(book).height / longest) * (size.width - 4);
+        depth = h;
+        cx = shelf.x + item.x + (i % 2 ? 4 : 0) + height / 2;
+        cy = shelf.bottom - size.height + bottom + h / 2;
+        break;
+      }
+    }
+    const width =
+      item.kind === 'book' && item.mode === 'cover'
+        ? size.width
+        : (height * 2) / 3;
+    return (
+      <foreignObject
+        x={cx - width}
+        y={cy - height}
+        width={width * 2}
+        height={height * 2}
+        className="book-in-hand-overlay"
+        data-held-book={entry.book_id}
+        data-pull-progress={inspection.progress}
+        onPointerDown={(event) => event.stopPropagation()}
+      >
+        <BookInHand
+          key={entry.book_id}
+          entry={entry}
+          photos={photos}
+          width={width}
+          height={height}
+          depth={depth}
+          progress={inspection.progress}
+          tilt={item.kind === 'stack' ? -90 : 0}
+          restAngle={item.kind === 'book' && item.mode === 'cover' ? 0 : 90}
+          typography={item.asset || 'classic'}
+          onOpen={onOpen}
+        />
+      </foreignObject>
+    );
+  }
   return (
     <svg
       ref={svgRef}
@@ -820,8 +1216,20 @@ export default function BookshelfScene({
       aria-label="Tu estantería personalizada"
     >
       <defs>
+        <LightingDefs
+          design={design}
+          uid={uid}
+          bounds={bounds}
+          animate={interactive}
+        />
         <linearGradient id={`${uid}-wall`} x2="0" y2="1">
-          <stop stopColor={design.background_color} />
+          <stop
+            stopColor={
+              design.night && design.atmosphere?.lighting.enabled
+                ? '#24343b'
+                : design.background_color
+            }
+          />
           <stop
             offset="1"
             stopColor={design.night ? '#121c26' : design.background_color}
@@ -895,7 +1303,15 @@ export default function BookshelfScene({
           >
             <stop
               stopColor={shelf.light.color}
-              stopOpacity={shelf.light.intensity * 0.8}
+              stopOpacity={
+                shelfPowered(
+                  geometry.shelves.find((e) => e.shelf.id === shelf.id)!
+                    .bookcase,
+                  shelf,
+                ) && !['none', 'spots'].includes(shelf.light.type ?? 'strip')
+                  ? shelf.light.intensity * 0.8
+                  : 0
+              }
             />
             <stop offset="1" stopColor={shelf.light.color} stopOpacity="0" />
           </linearGradient>
@@ -915,6 +1331,12 @@ export default function BookshelfScene({
           fill={`url(#${uid}-${design.background === 'wallpaper' ? 'paper' : 'wall-lines'})`}
         />
       )}
+      <LightingBackground
+        design={design}
+        uid={uid}
+        bounds={bounds}
+        animate={interactive}
+      />
       {cases.map(({ bookcase, x, y, width, height }) => (
         <g key={bookcase.id}>
           <rect
@@ -924,14 +1346,18 @@ export default function BookshelfScene({
             height={height}
             rx="4"
             fill="#000000"
-            opacity="0.13"
+            opacity={bookcase.style === 'floating' ? 0 : 0.13}
           />
           <rect
             x={x}
             y={y}
             width={width}
             height={height}
-            fill={`url(#${uid}-${bookcase.id}-wood)`}
+            fill={
+              bookcase.style === 'floating'
+                ? 'transparent'
+                : `url(#${uid}-${bookcase.id}-wood)`
+            }
           />
           <text
             x={x + width / 2}
@@ -957,7 +1383,11 @@ export default function BookshelfScene({
                   y={entry.y}
                   width={bookcase.width}
                   height={entry.shelf.height}
-                  fill={`url(#${uid}-${bookcase.id}-back)`}
+                  fill={
+                    bookcase.style === 'floating'
+                      ? design.background_color
+                      : `url(#${uid}-${bookcase.id}-back)`
+                  }
                 />
                 <rect
                   x={entry.x}
@@ -965,9 +1395,18 @@ export default function BookshelfScene({
                   width={bookcase.width}
                   height={entry.shelf.height}
                   fill="#16120e"
-                  opacity={design.night ? 0.48 : 0.15}
+                  opacity={
+                    bookcase.style === 'floating'
+                      ? design.night
+                        ? 0.15
+                        : 0.025
+                      : design.night
+                        ? 0.48
+                        : 0.15
+                  }
                 />
-                {bookcase.material !== 'white' &&
+                {bookcase.style !== 'floating' &&
+                  bookcase.material !== 'white' &&
                   bookcase.material !== 'black' && (
                     <rect
                       x={entry.x}
@@ -979,11 +1418,16 @@ export default function BookshelfScene({
                     />
                   )}
                 <path
-                  d={`M${entry.x} ${entry.y}v${entry.shelf.height}h${bookcase.width}`}
+                  d={
+                    bookcase.style === 'floating'
+                      ? `M${entry.x} ${entry.bottom}h${bookcase.width}`
+                      : `M${entry.x} ${entry.y}v${entry.shelf.height}h${bookcase.width}`
+                  }
                   stroke="#00000030"
                   strokeWidth="7"
                   fill="none"
                 />
+                <FurnitureBack entry={entry} />
                 <rect
                   x={entry.x}
                   y={entry.y}
@@ -991,47 +1435,7 @@ export default function BookshelfScene({
                   height={entry.shelf.height * 0.82}
                   fill={`url(#${uid}-${entry.shelf.id}-light)`}
                 />
-                {entry.shelf.light.intensity > 0 && (
-                  <rect
-                    x={entry.x + 8}
-                    y={entry.y + 2}
-                    width={bookcase.width - 16}
-                    height="3"
-                    rx="2"
-                    fill={entry.shelf.light.color}
-                    opacity={entry.shelf.light.intensity}
-                  />
-                )}
-                {entry.shelf.light.garland && (
-                  <g>
-                    <path
-                      d={`M${entry.x + 6} ${entry.y + 12}Q${entry.x + bookcase.width / 2} ${entry.y + 63} ${entry.x + bookcase.width - 6} ${entry.y + 12}`}
-                      fill="none"
-                      stroke="#b6a77e"
-                      strokeWidth="1.5"
-                    />
-                    {Array.from({ length: 19 }, (_, i) => {
-                      const t = (i + 1) / 20;
-                      return (
-                        <g key={i}>
-                          <circle
-                            cx={entry.x + bookcase.width * t}
-                            cy={entry.y + 12 + 100 * t * (1 - t)}
-                            r="8"
-                            fill={entry.shelf.light.color}
-                            opacity="0.18"
-                          />
-                          <circle
-                            cx={entry.x + bookcase.width * t}
-                            cy={entry.y + 12 + 100 * t * (1 - t)}
-                            r="3"
-                            fill={entry.shelf.light.color}
-                          />
-                        </g>
-                      );
-                    })}
-                  </g>
-                )}
+                <ShelfFixtures entry={entry} uid={uid} />
                 {design.items
                   .filter((item) => item.shelf_id === entry.shelf.id)
                   .map((item) => renderItem(item))}
@@ -1069,23 +1473,44 @@ export default function BookshelfScene({
             y={y}
             width="20"
             height={height}
-            fill={`url(#${uid}-${bookcase.id}-wood)`}
+            fill={
+              bookcase.style === 'floating'
+                ? 'transparent'
+                : `url(#${uid}-${bookcase.id}-wood)`
+            }
           />
           <rect
             x={x + width - 20}
             y={y}
             width="20"
             height={height}
-            fill={`url(#${uid}-${bookcase.id}-wood)`}
+            fill={
+              bookcase.style === 'floating'
+                ? 'transparent'
+                : `url(#${uid}-${bookcase.id}-wood)`
+            }
           />
           <path
             d={`M${x + 2} ${y + 2}H${x + width - 2}`}
-            stroke="#ffffff40"
+            stroke={bookcase.style === 'floating' ? 'transparent' : '#ffffff40'}
             strokeWidth="3"
+          />
+          <FurnitureDetails
+            design={design}
+            caseId={bookcase.id}
+            uid={uid}
+            onPower={onPower}
           />
         </g>
       ))}
+      <LightingForeground
+        design={design}
+        uid={uid}
+        bounds={bounds}
+        animate={interactive}
+      />
       {preview && renderItem(preview.item, true)}
+      {renderInspection()}
     </svg>
   );
 }

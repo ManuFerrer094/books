@@ -1,7 +1,28 @@
 /** Shared, dependency-free scene model and geometry used by the API and editor. */
+import {
+  validAtmosphere,
+  type BookshelfAtmosphere,
+} from './bookshelf-atmosphere.js';
 export const materials = ['oak', 'walnut', 'birch', 'white', 'black'] as const;
 export type Material = (typeof materials)[number];
 export type BookMode = 'upright' | 'lean' | 'cover';
+export const furnitureStyles = [
+  'classic',
+  'arch',
+  'gilded',
+  'industrial',
+  'floating',
+] as const;
+export const shelfLightTypes = [
+  'strip',
+  'spots',
+  'globes',
+  'fairy',
+  'neon',
+  'none',
+] as const;
+export type FurnitureStyle = (typeof furnitureStyles)[number];
+export type ShelfLightType = (typeof shelfLightTypes)[number];
 export interface DesignBook {
   book_id: number;
   status?: string;
@@ -19,9 +40,17 @@ export interface DesignBook {
 export interface Shelf {
   id: string;
   height: number;
-  light: { color: string; intensity: number; garland: boolean };
+  light: {
+    color: string;
+    intensity: number;
+    garland: boolean;
+    type?: ShelfLightType;
+    enabled?: boolean;
+  };
 }
 export interface Bookcase {
+  style?: FurnitureStyle;
+  lights_on?: boolean;
   id: string;
   name: string;
   width: number;
@@ -29,6 +58,8 @@ export interface Bookcase {
   shelves: Shelf[];
 }
 export interface SceneItem {
+  active?: boolean;
+  artwork?: number;
   id: string;
   kind: 'book' | 'stack' | 'decor';
   shelf_id: string;
@@ -49,12 +80,13 @@ export interface BookshelfDesign {
   night: boolean;
   bookcases: Bookcase[];
   items: SceneItem[];
+  atmosphere?: BookshelfAtmosphere;
 }
 export const decorations = [
   ['fern', 'Helecho', 'plant'],
-  ['monstera', 'Monstera', 'plant'],
-  ['ivy', 'Hiedra', 'plant'],
-  ['cactus', 'Cactus', 'plant'],
+  ['monstera', 'Planta tropical', 'plant'],
+  ['ivy', 'Planta de interior', 'plant'],
+  ['cactus', 'Suculenta', 'plant'],
   ['flowers', 'Flores silvestres', 'plant'],
   ['bonsai', 'Bonsái', 'plant'],
   ['pot', 'Maceta terracota', 'pot'],
@@ -647,6 +679,16 @@ export function applyPreset(books: DesignBook[], id: string): BookshelfDesign {
   const preset = presets.find((entry) => entry.id === id) ?? presets[0];
   let next = emptyDesign();
   next.bookcases[0].material = preset.material;
+  next.bookcases[0].style = (
+    {
+      classic: 'classic',
+      warm: 'arch',
+      minimal: 'floating',
+      botanical: 'classic',
+      night: 'industrial',
+      fantasy: 'gilded',
+    } as Record<string, FurnitureStyle>
+  )[preset.id];
   next.background_color = preset.color;
   next.background = preset.id === 'fantasy' ? 'wallpaper' : 'wall';
   next.night = preset.night;
@@ -657,6 +699,14 @@ export function applyPreset(books: DesignBook[], id: string): BookshelfDesign {
         ? 0
         : 0.3;
     shelf.light.garland = preset.id === 'fantasy' || preset.id === 'warm';
+    shelf.light.type =
+      preset.id === 'fantasy'
+        ? 'fairy'
+        : preset.id === 'night'
+          ? 'spots'
+          : preset.id === 'warm'
+            ? 'globes'
+            : 'strip';
     const item = decorItem(preset.assets[i], undefined, decorationUnit(books));
     next =
       placeItem(
@@ -732,6 +782,8 @@ export function validateDesign(
   )
     fail();
   const design = value as BookshelfDesign;
+  if (design.atmosphere !== undefined && !validAtmosphere(design.atmosphere))
+    fail();
   for (const c of design.bookcases) {
     if (
       !record(c) ||
@@ -740,6 +792,8 @@ export function validateDesign(
       c.name.length < 1 ||
       c.name.length > 80 ||
       !materials.includes(c.material) ||
+      (c.style !== undefined && !furnitureStyles.includes(c.style)) ||
+      (c.lights_on !== undefined && typeof c.lights_on !== 'boolean') ||
       !number(c.width, 320, 1600) ||
       !Array.isArray(c.shelves) ||
       c.shelves.length < 1 ||
@@ -754,7 +808,10 @@ export function validateDesign(
         !record(s.light) ||
         !color(s.light.color) ||
         !number(s.light.intensity, 0, 1) ||
-        typeof s.light.garland !== 'boolean'
+        typeof s.light.garland !== 'boolean' ||
+        (s.light.type !== undefined &&
+          !shelfLightTypes.includes(s.light.type)) ||
+        (s.light.enabled !== undefined && typeof s.light.enabled !== 'boolean')
       )
         fail();
   }
@@ -763,6 +820,13 @@ export function validateDesign(
   for (const item of design.items) {
     if (
       !record(item) ||
+      (item.active !== undefined &&
+        (item.kind !== 'decor' || typeof item.active !== 'boolean')) ||
+      (item.artwork !== undefined &&
+        (item.kind !== 'decor' ||
+          !['portrait', 'landscape'].includes(item.asset) ||
+          !Number.isInteger(item.artwork) ||
+          !number(item.artwork, 0, 3))) ||
       !id(item.id) ||
       !['book', 'stack', 'decor'].includes(item.kind) ||
       !['upright', 'lean', 'cover'].includes(item.mode) ||

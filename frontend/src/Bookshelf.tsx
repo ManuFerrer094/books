@@ -56,6 +56,17 @@ import {
 import { errorMessage } from './api';
 import { Dialog } from './components';
 import BookshelfScene, { DecorArt } from './BookshelfScene';
+import LibraryAtmosphere from './LibraryAtmosphere';
+import {
+  FurnitureControls,
+  DecorationControls,
+} from './BookshelfCraftControls';
+import {
+  decorationCollections,
+  decorAction,
+  interactDecoration,
+} from '../../src/library/bookshelf-craft';
+import { decorationAssets, decorationColor } from './bookshelf-decor';
 import { useBookshelfStudio } from './useBookshelfStudio';
 import { exportBookshelf } from './bookshelf-export';
 import { spineStyle } from './bookshelf-layout';
@@ -104,6 +115,12 @@ export default function Bookshelf({
     [tab, setTab] = useState<string>('ambience');
   const [selected, setSelected] = useState<string[]>([]),
     [chosenBooks, setChosenBooks] = useState<number[]>([]);
+  const [collection, setCollection] = useState('all');
+  const [selectedBook, setSelectedBook] = useState<number | null>(null);
+  const [inspection, setInspection] = useState<{
+    bookId: number;
+    progress: number;
+  } | null>(null);
   const [caseId, setCaseId] = useState(''),
     [shelfId, setShelfId] = useState('');
   const [zoom, setZoom] = useState(1),
@@ -133,6 +150,7 @@ export default function Bookshelf({
     exportSvg = useRef<SVGSVGElement>(null);
   const drag = useRef<{
     item: SceneItem;
+    bookId?: number;
     startX: number;
     startY: number;
     offsetX: number;
@@ -141,6 +159,20 @@ export default function Bookshelf({
     additive: boolean;
   } | null>(null);
   const suppressClick = useRef(0);
+  const ambientSound = useRef<{ page: () => void }>(null);
+  const previousInspection = useRef<typeof inspection>(null);
+  useEffect(() => {
+    const previous = previousInspection.current;
+    previousInspection.current = inspection;
+    if (
+      inspection &&
+      inspection.progress > 0 &&
+      (!previous ||
+        previous.progress === 0 ||
+        previous.bookId !== inspection.bookId)
+    )
+      ambientSound.current?.page();
+  }, [inspection]);
   const pan = useRef<{ pointer: number; x: number; y: number } | null>(null);
   const previewRef = useRef<typeof preview>(null);
   const reloadRevision = useRef<number | null>(null);
@@ -184,6 +216,9 @@ export default function Bookshelf({
     currentCase?.shelves.find((s) => s.id === shelfId) ??
     currentCase?.shelves[0];
   const selectedItem = design?.items.find((item) => item.id === selected[0]);
+  const selectedBookId = selectedItem?.book_ids.includes(selectedBook ?? -1)
+    ? selectedBook!
+    : selectedItem?.book_ids[0];
   const selectedIds = [
     ...new Set([
       ...chosenBooks,
@@ -199,6 +234,60 @@ export default function Bookshelf({
   const filtering = books.length !== allBooks.length || preserveVisibleOrder;
   const appearance = allBooks.find((book) => book.book_id === appearanceId);
   const geometry = design ? sceneGeometry(design) : null;
+  useEffect(() => {
+    setInspection((current) =>
+      designing && !arrangement && current?.bookId === selectedBookId
+        ? current
+        : null,
+    );
+  }, [selectedBookId, designing, arrangement]);
+  useEffect(() => {
+    if (!inspection || inspection.progress !== 0) return;
+    const timer = window.setTimeout(
+      () =>
+        setInspection((current) => (current?.progress === 0 ? null : current)),
+      250,
+    );
+    return () => window.clearTimeout(timer);
+  }, [inspection]);
+  useEffect(() => {
+    const stage = viewport.current;
+    if (!stage || !designing || arrangement || selectedBookId === undefined)
+      return;
+    const wheel = (event: WheelEvent) => {
+      if (
+        event.ctrlKey ||
+        event.altKey ||
+        event.metaKey ||
+        !event.deltaY ||
+        Math.abs(event.deltaX) >= Math.abs(event.deltaY) ||
+        drag.current ||
+        root.current?.querySelector('dialog[open]')
+      )
+        return;
+      event.preventDefault();
+      const pixels =
+        event.deltaY *
+        (event.deltaMode === 1
+          ? 16
+          : event.deltaMode === 2
+            ? stage.clientHeight
+            : 1);
+      setInspection((current) => {
+        const previous =
+          current?.bookId === selectedBookId ? current.progress : 0;
+        const progress = Math.max(
+          0,
+          Math.min(1, previous + Math.max(-240, Math.min(240, pixels)) / 480),
+        );
+        return progress === previous
+          ? current
+          : { bookId: selectedBookId, progress };
+      });
+    };
+    stage.addEventListener('wheel', wheel, { passive: false });
+    return () => stage.removeEventListener('wheel', wheel);
+  }, [designing, selectedBookId, !!design, !!arrangement]);
   const editable = (next: BookshelfDesign, action = '') => {
     studio.commit(next, action);
     setMessage('');
@@ -209,8 +298,58 @@ export default function Bookshelf({
     change(next);
     editable(next, action);
   };
-  function selectItem(item: SceneItem, additive: boolean) {
-    if (Date.now() < suppressClick.current) return;
+  const interactObject = (item: SceneItem) => {
+    if (!decorAction(item)) {
+      setDesigning(true);
+      selectItem(item, false, undefined, true);
+      return;
+    }
+    changed((next) => {
+      next.items = next.items.map((other) =>
+        other.id === item.id ? interactDecoration(other) : other,
+      );
+    });
+  };
+  function furniturePreset(id: string) {
+    const next = applyPreset(allBooks, id);
+    if (design?.atmosphere) {
+      next.atmosphere = structuredClone(design.atmosphere);
+      if (next.night !== design.night) next.atmosphere.scene = 'custom';
+    }
+    return next;
+  }
+  function removeSelectedDecorations() {
+    const ids = new Set(
+      design?.items
+        .filter((item) => item.kind === 'decor' && selected.includes(item.id))
+        .map((item) => item.id),
+    );
+    if (!ids.size) return;
+    changed((next) => {
+      next.items = next.items.filter((item) => !ids.has(item.id));
+    });
+    setSelected((old) => old.filter((id) => !ids.has(id)));
+  }
+  function inspectSelectedBook(progress: number) {
+    if (selectedBookId === undefined) return;
+    setInspection({ bookId: selectedBookId, progress });
+    if (progress > 0)
+      root.current
+        ?.querySelector(`[data-shelf-book="${selectedBookId}"]`)
+        ?.scrollIntoView({
+          block: 'center',
+          inline: 'center',
+          behavior: 'instant',
+        });
+  }
+  function selectItem(
+    item: SceneItem,
+    additive: boolean,
+    bookId?: number,
+    direct = false,
+  ) {
+    if (!direct && Date.now() < suppressClick.current) return;
+    setSelectedBook(bookId ?? null);
     setSelected((old) =>
       additive
         ? old.includes(item.id)
@@ -330,11 +469,18 @@ export default function Bookshelf({
     const p = point(event),
       shelf = geometry.shelves.find((s) => s.shelf.id === item.shelf_id);
     if (!p || !shelf) return;
+    setInspection(null);
     event.preventDefault();
-    event.currentTarget.focus({ preventScroll: true });
+    const bookTarget = (event.target as Element).closest<SVGElement>(
+      '[data-shelf-book]',
+    );
+    (bookTarget ?? event.currentTarget).focus({ preventScroll: true });
     svg.current?.setPointerCapture(event.pointerId);
     drag.current = {
       item,
+      bookId: bookTarget
+        ? Number(bookTarget.getAttribute('data-shelf-book'))
+        : undefined,
       startX: event.clientX,
       startY: event.clientY,
       offsetX: p.x - shelf.x - item.x,
@@ -437,6 +583,7 @@ export default function Bookshelf({
         if (next) {
           editable(next);
           setSelected([current.item.id]);
+          setSelectedBook(current.bookId ?? null);
           focusAfterMove.current = current.item.id;
         }
       } else if (!cancel)
@@ -444,7 +591,7 @@ export default function Bookshelf({
           'No hay espacio en esa posición. Puedes mover el objeto con los controles o elegir otra balda.',
         );
     } else if (current && !cancel) {
-      selectItem(current.item, current.additive);
+      selectItem(current.item, current.additive, current.bookId, true);
       suppressClick.current = Date.now() + 300;
     }
     setPreview(null);
@@ -523,6 +670,33 @@ export default function Bookshelf({
     <div
       className={`bookshelf-studio ${designing ? 'is-designing' : ''}`}
       ref={root}
+      onKeyDown={(event) => {
+        if (
+          (event.target as Element).closest(
+            'input, textarea, select, [contenteditable], dialog, [data-ambient-controls]',
+          )
+        )
+          return;
+        if (event.key === 'Escape' && inspection) {
+          event.preventDefault();
+          setInspection({ ...inspection, progress: 0 });
+        }
+        if (
+          event.key === 'Delete' &&
+          designing &&
+          !arrangement &&
+          !drag.current &&
+          !event.ctrlKey &&
+          !event.altKey &&
+          !event.metaKey &&
+          design.items.some(
+            (item) => item.kind === 'decor' && selected.includes(item.id),
+          )
+        ) {
+          event.preventDefault();
+          removeSelectedDecorations();
+        }
+      }}
     >
       <div className="studio-topbar">
         <div>
@@ -545,6 +719,24 @@ export default function Bookshelf({
         </div>
       </div>
       <div className="studio-actions">
+        <button
+          className="text-button"
+          disabled={!!arrangement}
+          aria-pressed={design.bookcases.some((c) => c.lights_on !== false)}
+          onClick={() =>
+            changed((next) => {
+              const on = next.bookcases.some((c) => c.lights_on !== false);
+              next.bookcases.forEach((c) => {
+                c.lights_on = !on;
+              });
+            })
+          }
+        >
+          {design.bookcases.some((c) => c.lights_on !== false)
+            ? 'Apagar'
+            : 'Encender'}{' '}
+          todas las luces del mueble
+        </button>
         <button
           className="icon-button"
           aria-label="Deshacer"
@@ -607,6 +799,19 @@ export default function Bookshelf({
           <Maximize size={17} />
         </button>
       </div>
+      <LibraryAtmosphere
+        ref={ambientSound}
+        key={ownerId}
+        ownerId={ownerId}
+        value={design.atmosphere}
+        night={design.night}
+        onChange={(value, action, night) =>
+          changed((next) => {
+            next.atmosphere = value;
+            if (night !== undefined) next.night = night;
+          }, action)
+        }
+      />
       {studio.error && (
         <div className="shelf-error" role="alert">
           <p>{studio.error}</p>
@@ -725,8 +930,19 @@ export default function Bookshelf({
                 designing={designing && !arrangement}
                 onSelect={arrangement ? undefined : selectItem}
                 onOpen={arrangement ? undefined : onSelect}
+                onInteract={arrangement ? undefined : interactObject}
+                onPower={
+                  arrangement
+                    ? undefined
+                    : (id) =>
+                        changed((next) => {
+                          const c = next.bookcases.find((c) => c.id === id)!;
+                          c.lights_on = c.lights_on === false;
+                        })
+                }
                 onPointerDown={startDrag}
                 preview={preview}
+                inspection={inspection}
               />
             </div>
           </div>
@@ -793,8 +1009,9 @@ export default function Bookshelf({
                     );
                     if (item) {
                       setSelected([item.id]);
+                      setSelectedBook(book.book_id);
                       root.current
-                        ?.querySelector(`[data-item-id="${item.id}"]`)
+                        ?.querySelector(`[data-shelf-book="${book.book_id}"]`)
                         ?.scrollIntoView({ block: 'center', inline: 'center' });
                     } else onSelect(book.book_id);
                   }}
@@ -895,6 +1112,7 @@ export default function Bookshelf({
                               <DecorArt
                                 asset={preset.assets[0]}
                                 color="#809271"
+                                thumbnail
                               />
                             </svg>
                           </span>
@@ -938,6 +1156,7 @@ export default function Bookshelf({
                       onClick={() =>
                         changed((next) => {
                           next.night = !next.night;
+                          if (next.atmosphere) next.atmosphere.scene = 'custom';
                         })
                       }
                     >
@@ -983,6 +1202,11 @@ export default function Bookshelf({
                 )}
                 {tab === 'furniture' && (
                   <>
+                    <FurnitureControls
+                      bookcase={currentCase}
+                      shelf={currentShelf}
+                      changed={changed}
+                    />
                     <label className="field">
                       Nombre
                       <input
@@ -1231,6 +1455,21 @@ export default function Bookshelf({
                         <X size={14} />
                       </button>
                     </div>
+                    {selectedBookId !== undefined && (
+                      <div className="studio-book-gesture">
+                        <button
+                          className="button secondary"
+                          onClick={() =>
+                            inspectSelectedBook(inspection?.progress ? 0 : 1)
+                          }
+                        >
+                          {inspection?.progress
+                            ? 'Devolver a la balda'
+                            : 'Sacar libro'}
+                        </button>
+                        <p>Rueda ↓: sacar y girar · ↑: devolver.</p>
+                      </div>
+                    )}
                     <div className="studio-move-controls">
                       <button
                         className="icon-button"
@@ -1269,12 +1508,20 @@ export default function Bookshelf({
                     </button>
                     {selectedItem.kind === 'decor' ? (
                       <>
+                        <DecorationControls
+                          item={selectedItem}
+                          onInteract={interactObject}
+                          onUpdate={updateItem}
+                        />
                         <label className="field">
                           Color del objeto
                           <input
                             type="color"
                             aria-label="Color del objeto"
-                            value={selectedItem.color}
+                            value={decorationColor(
+                              selectedItem.asset,
+                              selectedItem.color,
+                            )}
                             onChange={(e) =>
                               updateItem(
                                 { color: e.target.value },
@@ -1283,6 +1530,21 @@ export default function Bookshelf({
                             }
                           />
                         </label>
+                        <button
+                          className="text-button"
+                          onClick={() =>
+                            updateItem(
+                              {
+                                color:
+                                  decorationAssets[selectedItem.asset]
+                                    ?.naturalColor ?? '#b18a60',
+                              },
+                              'decor-color',
+                            )
+                          }
+                        >
+                          Recuperar material original
+                        </button>
                         <label className="field">
                           Espacio que ocupa
                           <select
@@ -1383,26 +1645,66 @@ export default function Bookshelf({
                         </button>
                       </>
                     ) : (
-                      <button
-                        className="text-button"
-                        onClick={() => {
-                          changed((next) => {
-                            next.items = next.items.filter(
-                              (item) => item.id !== selectedItem.id,
+                      <>
+                        <label className="field">
+                          Libro de la pila
+                          <select
+                            aria-label="Libro de la pila"
+                            value={selectedBookId}
+                            onChange={(e) =>
+                              setSelectedBook(Number(e.target.value))
+                            }
+                          >
+                            {selectedItem.book_ids.map((id) => (
+                              <option key={id} value={id}>
+                                {bookMap.get(id)?.book.title}
+                              </option>
+                            ))}
+                          </select>
+                        </label>
+                        <button
+                          className="button secondary"
+                          onClick={() =>
+                            selectedBookId !== undefined &&
+                            setAppearanceId(selectedBookId)
+                          }
+                        >
+                          Personalizar lomo
+                        </button>
+                        <button
+                          className="text-button"
+                          onClick={() =>
+                            selectedBookId !== undefined &&
+                            onSelect(selectedBookId)
+                          }
+                        >
+                          Abrir ficha del libro
+                        </button>
+                        <button
+                          className="text-button"
+                          onClick={() => {
+                            changed((next) => {
+                              next.items = next.items.filter(
+                                (item) => item.id !== selectedItem.id,
+                              );
+                            });
+                            setSelected([]);
+                            setMessage(
+                              'Los libros de la pila están en «Por colocar».',
                             );
-                          });
-                          setSelected([]);
-                          setMessage(
-                            'Los libros de la pila están en «Por colocar».',
-                          );
-                        }}
-                      >
-                        Deshacer pila
-                      </button>
+                          }}
+                        >
+                          Deshacer pila
+                        </button>
+                      </>
                     )}
                     <button
                       className="text-button studio-remove"
                       onClick={() => {
+                        if (selectedItem.kind === 'decor') {
+                          removeSelectedDecorations();
+                          return;
+                        }
                         changed((next) => {
                           next.items = next.items.filter(
                             (item) => !selected.includes(item.id),
@@ -1422,27 +1724,62 @@ export default function Bookshelf({
                     <p className="studio-panel-intro">
                       Pequeños detalles que hacen hogar.
                     </p>
-                    <div className="studio-decor-grid">
-                      {decorations.map(([asset, label]) => (
+                    <div
+                      className="craft-collections"
+                      aria-label="Colecciones de objetos"
+                    >
+                      {decorationCollections.map((c) => (
                         <button
-                          key={asset}
-                          title={label}
-                          onClick={() =>
-                            put(decorItem(asset, undefined, decorUnit))
-                          }
+                          key={c.id}
+                          aria-pressed={collection === c.id}
+                          onClick={() => setCollection(c.id)}
                         >
-                          <DecorArt
-                            asset={asset}
-                            color={
-                              asset === 'fern' || asset === 'monstera'
-                                ? '#758969'
-                                : '#b48c64'
-                            }
-                          />
-                          <span>{label}</span>
+                          {c.name}
                         </button>
                       ))}
                     </div>
+                    <p className="craft-hint">
+                      En modo Ver, toca las luces, plantas, marcos, figuras,
+                      reloj y taza para descubrir sus gestos.
+                    </p>
+                    <div className="studio-decor-grid">
+                      {decorations
+                        .filter(
+                          ([asset]) =>
+                            collection === 'all' ||
+                            decorationCollections
+                              .find((c) => c.id === collection)!
+                              .assets.includes(asset),
+                        )
+                        .map(([asset, label]) => (
+                          <button
+                            key={asset}
+                            title={label}
+                            onClick={() =>
+                              put(decorItem(asset, undefined, decorUnit))
+                            }
+                          >
+                            <DecorArt
+                              asset={asset}
+                              thumbnail
+                              color={
+                                asset === 'fern' || asset === 'monstera'
+                                  ? '#758969'
+                                  : '#b48c64'
+                              }
+                            />
+                            <span>{label}</span>
+                          </button>
+                        ))}
+                    </div>
+                    <a
+                      className="studio-decor-credits"
+                      href="/assets/decorations/credits.html"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                    >
+                      Recursos y autores
+                    </a>
                   </>
                 )}
                 {tab === 'books' && (
@@ -1623,14 +1960,14 @@ export default function Bookshelf({
           </p>
           <div className="studio-preset-preview">
             <BookshelfScene
-              design={applyPreset(allBooks, presetId)}
+              design={furniturePreset(presetId)}
               books={allBooks}
             />
           </div>
           <button
             className="button primary"
             onClick={() => {
-              editable(applyPreset(allBooks, presetId));
+              editable(furniturePreset(presetId));
               setPresetId(null);
               setSelected([]);
               setChosenBooks([]);
